@@ -33,7 +33,39 @@ from permit_stall_finder.schema.stall_detection import (
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_KB_PATH = _REPO_ROOT / "research" / "agent3_knowledge_base.json"
+
+# Candidate locations for the knowledge base, tried in order.
+#
+# The first assumes this module is being imported from a source checkout
+# (src/permit_stall_finder/knowledge_base/loader.py -> repo root), which
+# holds for an editable install and for running from the tree. It does not
+# hold for a normal `pip install .`: the module is copied into
+# site-packages, parents[3] then points at the environment's lib directory,
+# and research/ is not packaged, so the file is simply absent. That is
+# exactly what broke the first Streamlit Cloud deployment.
+#
+# The second covers that case: a deployment checks the repo out and runs
+# from its root, so research/ is present relative to the working directory
+# even when the installed package cannot see it.
+_KB_CANDIDATES = (
+    _REPO_ROOT / "research" / "agent3_knowledge_base.json",
+    Path.cwd() / "research" / "agent3_knowledge_base.json",
+)
+
+
+def _resolve_kb_path() -> Path:
+    """First candidate that exists, else the first one -- so the resulting
+    FileNotFoundError names the location a developer would expect rather
+    than the last one tried."""
+    for candidate in _KB_CANDIDATES:
+        if candidate.is_file():
+            return candidate
+    return _KB_CANDIDATES[0]
+
+
+#: Kept for callers that want the location without loading. Resolved at
+#: import for convenience only -- load_knowledge_base() re-resolves.
+_KB_PATH = _resolve_kb_path()
 
 LookupKey = tuple[StallCategory, str, Optional[str]]
 
@@ -78,7 +110,11 @@ def _parse_entry(raw: dict) -> KnowledgeBaseEntry:
     )
 
 
-def load_knowledge_base(path: Path = _KB_PATH) -> KnowledgeBase:
+def load_knowledge_base(path: Path | None = None) -> KnowledgeBase:
+    # Resolved per call rather than baked in as a default argument, which
+    # would freeze whatever the working directory happened to be at import
+    # time -- and one of the candidates is relative to it.
+    path = path if path is not None else _resolve_kb_path()
     with open(path) as f:
         raw = json.load(f)
 

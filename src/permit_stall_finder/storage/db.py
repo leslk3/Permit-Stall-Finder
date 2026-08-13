@@ -78,6 +78,29 @@ CREATE TABLE IF NOT EXISTS search_history (
     PRIMARY KEY (kind, value)
 );
 
+CREATE TABLE IF NOT EXISTS alert_subscriptions (
+    -- A request to be emailed when a permit's status changes. NOTE: this
+    -- table records the request only. Nothing in this codebase sends mail
+    -- or polls for changes on a schedule -- there is no scheduler, no mail
+    -- transport and no per-user auth here, so a row landing in this table
+    -- is an expression of intent, not a delivery guarantee. The UI says so
+    -- at the point of capture; do not surface these rows as "you will be
+    -- notified" anywhere until a sender actually exists.
+    --
+    -- This is also the first table in the app holding personal data. It
+    -- lives in the same local, gitignored DuckDB file as everything else,
+    -- unencrypted, and is app-wide rather than per-account like every
+    -- other table here -- which means anyone with the app can read every
+    -- address stored. That is acceptable for a local single-user MVP and
+    -- is not acceptable for a deployment; see the note in
+    -- user_state.subscribe_alert.
+    kind TEXT NOT NULL,
+    value TEXT NOT NULL,
+    email TEXT NOT NULL,
+    subscribed_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (kind, value, email)
+);
+
 CREATE TABLE IF NOT EXISTS cohort_stats (
     cohort_key TEXT NOT NULL,       -- category + sorted dimensions, e.g. "pre_issuance_status_dwell|permit_type=Bldg-Alter/Repair|status_desc=Corrections Issued"
     computed_at TIMESTAMP NOT NULL,

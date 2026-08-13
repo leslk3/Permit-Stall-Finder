@@ -114,3 +114,79 @@ def test_read_recent_searches_respects_limit(conn):
 
 def test_read_recent_searches_empty_when_nothing_searched(conn):
     assert user_state.read_recent_searches(conn) == []
+
+
+# --- status-change alert subscriptions --------------------------------
+#
+# These cover storage only, which is all that exists: subscribe_alert
+# records a request and nothing in this codebase sends mail or watches the
+# source datasets for changes. There is deliberately no test asserting an
+# alert fires, because none does.
+
+
+def test_subscribe_alert_then_read_it_back(conn):
+    assert user_state.read_alert_subscriptions(conn, "permit_number", "21030-20000-00256") == []
+
+    user_state.subscribe_alert(
+        conn, "permit_number", "21030-20000-00256", "leslie@example.com", now=T1
+    )
+
+    subs = user_state.read_alert_subscriptions(conn, "permit_number", "21030-20000-00256")
+    assert [(s.email, s.subscribed_at) for s in subs] == [("leslie@example.com", T1)]
+
+
+def test_subscribe_alert_is_scoped_to_its_own_permit(conn):
+    user_state.subscribe_alert(conn, "permit_number", "21030-20000-00256", "a@example.com", now=T1)
+
+    assert user_state.read_alert_subscriptions(conn, "permit_number", "25016-10000-32699") == []
+
+
+def test_resubscribing_same_address_updates_rather_than_duplicates(conn):
+    user_state.subscribe_alert(conn, "permit_number", "21030-20000-00256", "a@example.com", now=T1)
+    user_state.subscribe_alert(conn, "permit_number", "21030-20000-00256", "a@example.com", now=T2)
+
+    subs = user_state.read_alert_subscriptions(conn, "permit_number", "21030-20000-00256")
+    assert len(subs) == 1
+    assert subs[0].subscribed_at == T2  # refreshed, unlike starring
+
+
+def test_several_addresses_can_watch_one_permit(conn):
+    user_state.subscribe_alert(conn, "permit_number", "21030-20000-00256", "a@example.com", now=T1)
+    user_state.subscribe_alert(conn, "permit_number", "21030-20000-00256", "b@example.com", now=T2)
+
+    subs = user_state.read_alert_subscriptions(conn, "permit_number", "21030-20000-00256")
+    assert [s.email for s in subs] == ["b@example.com", "a@example.com"]  # most recent first
+
+
+def test_unsubscribe_removes_only_that_address(conn):
+    user_state.subscribe_alert(conn, "permit_number", "21030-20000-00256", "a@example.com", now=T1)
+    user_state.subscribe_alert(conn, "permit_number", "21030-20000-00256", "b@example.com", now=T2)
+
+    user_state.unsubscribe_alert(conn, "permit_number", "21030-20000-00256", "a@example.com")
+
+    subs = user_state.read_alert_subscriptions(conn, "permit_number", "21030-20000-00256")
+    assert [s.email for s in subs] == ["b@example.com"]
+
+
+def test_address_is_stored_stripped(conn):
+    user_state.subscribe_alert(
+        conn, "permit_number", "21030-20000-00256", "  leslie@example.com  ", now=T1
+    )
+
+    subs = user_state.read_alert_subscriptions(conn, "permit_number", "21030-20000-00256")
+    assert subs[0].email == "leslie@example.com"
+
+
+def test_implausible_address_raises_and_stores_nothing(conn):
+    import pytest
+
+    for bad in ["", "   ", "leslie", "leslie@", "@example.com", "leslie@example", "a b@c.com"]:
+        with pytest.raises(ValueError):
+            user_state.subscribe_alert(conn, "permit_number", "21030-20000-00256", bad, now=T1)
+
+    assert user_state.read_alert_subscriptions(conn, "permit_number", "21030-20000-00256") == []
+
+
+def test_is_plausible_email_accepts_ordinary_addresses(conn):
+    for good in ["a@b.co", "leslie.kawano@anderson.ucla.edu", "x+tag@example.com"]:
+        assert user_state.is_plausible_email(good) is True

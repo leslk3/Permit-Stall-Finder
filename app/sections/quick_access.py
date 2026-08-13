@@ -110,13 +110,70 @@ def render(conn: duckdb.DuckDBPyConnection) -> QuickAccessSelection | None:
 def render_star_toggle(conn: duckdb.DuckDBPyConnection, kind: str, value: str) -> None:
     """A single star/unstar button for one specific (kind, value) --
     dropped next to a single-permit result or an address search query so
-    starring the thing you're already looking at takes one click."""
+    starring the thing you're already looking at takes one click.
+
+    Icon-only: a filled star means saved, an outline means not, which is
+    the whole state and needs no caption beside it. The label still exists
+    for the accessible name and the hover tooltip -- it is the *visible*
+    text that is gone, not the text. A toast confirms the write, because
+    with the caption removed the only remaining feedback is the icon
+    swapping, which is easy to miss on a page this dense.
+    """
     starred = user_state.is_starred(conn, kind, value)
     label = t("star.added") if starred else t("star.add")
     icon = ":material/star:" if starred else ":material/star_outline:"
-    if st.button(label, key=f"star_toggle_{kind}_{value}", icon=icon):
+    if st.button("", key=f"star_toggle_{kind}_{value}", icon=icon, help=label):
         if starred:
             user_state.unstar_item(conn, kind, value)
+            st.toast(t("star.removed_toast"), icon=":material/star_outline:")
         else:
             user_state.star_item(conn, kind, value)
+            st.toast(t("star.added_toast"), icon=":material/star:")
         st.rerun()
+
+
+def render_alert_toggle(conn: duckdb.DuckDBPyConnection, kind: str, value: str) -> None:
+    """Bell beside the star: collects an email address to be told when this
+    permit's status changes.
+
+    The popover is explicit that nothing is sent yet, and that wording is
+    load-bearing rather than decorative. There is no scheduler watching the
+    source datasets and no mail transport in this codebase, so a
+    subscription here is a recorded intent. Telling a user tracking a
+    stalled permit that they will be alerted, when no alert can fire, would
+    have them stop checking a permit nobody is watching for them -- a worse
+    outcome than not offering the box at all. See
+    user_state.subscribe_alert for the storage and privacy caveats.
+    """
+    existing = user_state.read_alert_subscriptions(conn, kind, value)
+    icon = ":material/notifications_active:" if existing else ":material/notifications:"
+    with st.popover("", icon=icon, help=t("alert.help")):
+        st.markdown(f"**{t('alert.heading')}**")
+        st.caption(t("alert.not_sending_yet"))
+
+        if existing:
+            st.caption(t("alert.existing"))
+            for sub in existing:
+                row_label, row_action = st.columns([3, 1])
+                row_label.markdown(f"`{sub.email}`")
+                if row_action.button(
+                    t("alert.remove"), key=f"alert_rm_{kind}_{value}_{sub.email}"
+                ):
+                    user_state.unsubscribe_alert(conn, kind, value, sub.email)
+                    st.toast(t("alert.removed_toast"), icon=":material/notifications_off:")
+                    st.rerun()
+
+        with st.form(f"alert_form_{kind}_{value}", border=False, clear_on_submit=True):
+            email = st.text_input(
+                t("alert.email_label"),
+                placeholder="you@example.com",
+                label_visibility="collapsed",
+            )
+            if st.form_submit_button(t("alert.submit"), icon=":material/notifications:"):
+                try:
+                    user_state.subscribe_alert(conn, kind, value, email)
+                except ValueError:
+                    st.error(t("alert.invalid_email"))
+                else:
+                    st.toast(t("alert.added_toast"), icon=":material/check_circle:")
+                    st.rerun()

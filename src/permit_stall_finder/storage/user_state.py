@@ -17,6 +17,7 @@ history.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -88,6 +89,92 @@ def read_starred_items(conn: duckdb.DuckDBPyConnection) -> list[StarredItem]:
     ).fetchall()
     return [
         StarredItem(kind=r[0], value=r[1], starred_at=_from_utc_naive(r[2])) for r in rows
+    ]
+
+
+@dataclass(frozen=True)
+class AlertSubscription:
+    kind: str
+    value: str
+    email: str
+    subscribed_at: datetime
+
+
+# Intentionally permissive: one @, a dot in the domain, no whitespace. The
+# job here is to catch a typo before it is stored, not to decide what a
+# valid address is -- the only real proof an address works is mail
+# arriving at it, and nothing in this app sends mail yet.
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def is_plausible_email(email: str) -> bool:
+    return bool(_EMAIL_RE.match(email.strip()))
+
+
+def subscribe_alert(
+    conn: duckdb.DuckDBPyConnection,
+    kind: str,
+    value: str,
+    email: str,
+    *,
+    now: datetime | None = None,
+) -> None:
+    """Records a request to be emailed when this permit's status changes.
+
+    This writes a row. It does not arrange for anything to be sent: there
+    is no scheduler polling the source datasets for changes and no mail
+    transport anywhere in this codebase, so delivery does not happen and
+    the UI must not imply that it does.
+
+    It is also the only place the app stores personal data. The address
+    goes into the same local, unencrypted, gitignored DuckDB file as
+    everything else, and -- like every other table here -- it is app-wide
+    rather than scoped to an account, so anyone with access to the app can
+    read every address collected. Before this ships anywhere real it needs
+    at minimum: per-user auth so subscriptions are private, a delete path
+    so someone can withdraw an address they gave, and a privacy notice at
+    the point of capture. Raises ValueError on an implausible address so a
+    typo fails loudly here rather than silently never being contacted.
+    """
+    assert kind in VALID_KINDS, f"unknown kind {kind!r}"
+    cleaned = email.strip()
+    if not is_plausible_email(cleaned):
+        raise ValueError(f"{email!r} does not look like an email address")
+    conn.execute(
+        """
+        INSERT INTO alert_subscriptions (kind, value, email, subscribed_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT (kind, value, email) DO UPDATE SET subscribed_at = excluded.subscribed_at
+        """,
+        [kind, value, cleaned, _to_utc_naive(now or datetime.now(timezone.utc))],
+    )
+
+
+def unsubscribe_alert(
+    conn: duckdb.DuckDBPyConnection, kind: str, value: str, email: str
+) -> None:
+    conn.execute(
+        "DELETE FROM alert_subscriptions WHERE kind = ? AND value = ? AND email = ?",
+        [kind, value, email.strip()],
+    )
+
+
+def read_alert_subscriptions(
+    conn: duckdb.DuckDBPyConnection, kind: str, value: str
+) -> list[AlertSubscription]:
+    """Every address subscribed to one permit/address, most recent first."""
+    rows = conn.execute(
+        """
+        SELECT kind, value, email, subscribed_at FROM alert_subscriptions
+        WHERE kind = ? AND value = ? ORDER BY subscribed_at DESC
+        """,
+        [kind, value],
+    ).fetchall()
+    return [
+        AlertSubscription(
+            kind=r[0], value=r[1], email=r[2], subscribed_at=_from_utc_naive(r[3])
+        )
+        for r in rows
     ]
 
 

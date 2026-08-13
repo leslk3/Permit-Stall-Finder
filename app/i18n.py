@@ -89,6 +89,47 @@ _STRINGS: dict[str, dict[str, str]] = {
     # --- Star / panel ---------------------------------------------------
     "star.add": {"en": "Star this", "es": "Guardar"},
     "star.added": {"en": "Starred", "es": "Guardado"},
+    "star.added_toast": {"en": "Saved to your starred list", "es": "Guardado en su lista"},
+    "star.removed_toast": {
+        "en": "Removed from your starred list",
+        "es": "Eliminado de su lista",
+    },
+    # --- Status-change alerts -------------------------------------------
+    "alert.help": {
+        "en": "Get notified when this permit's status changes",
+        "es": "Recibir aviso cuando cambie el estado de este permiso",
+    },
+    "alert.heading": {
+        "en": "Alert me when this changes",
+        "es": "Avísenme cuando esto cambie",
+    },
+    # Deliberately blunt in both languages. Nothing sends these yet, and a
+    # user tracking a stalled permit who believes they will be emailed will
+    # stop checking a permit nobody is watching for them.
+    "alert.not_sending_yet": {
+        "en": (
+            "Not active yet. This saves your address so alerts can be switched on later — "
+            "no email is sent today, so keep checking the permit yourself."
+        ),
+        "es": (
+            "Aún no está activo. Esto guarda su correo para poder activar los avisos más "
+            "adelante; hoy no se envía ningún correo, así que siga consultando el permiso "
+            "usted mismo."
+        ),
+    },
+    "alert.email_label": {"en": "Email address", "es": "Correo electrónico"},
+    "alert.submit": {"en": "Save my address", "es": "Guardar mi correo"},
+    "alert.existing": {"en": "Saved for this permit:", "es": "Guardado para este permiso:"},
+    "alert.remove": {"en": "Remove", "es": "Quitar"},
+    "alert.invalid_email": {
+        "en": "That doesn't look like an email address.",
+        "es": "Eso no parece un correo electrónico.",
+    },
+    "alert.added_toast": {
+        "en": "Address saved — alerts are not sending yet",
+        "es": "Correo guardado: los avisos aún no se envían",
+    },
+    "alert.removed_toast": {"en": "Address removed", "es": "Correo eliminado"},
     "panel.heading": {"en": "Saved & recent", "es": "Guardados y recientes"},
     "panel.starred": {"en": "Starred", "es": "Guardados"},
     "panel.recent": {"en": "Recent", "es": "Recientes"},

@@ -91,6 +91,13 @@ def render(result: PermitAnalysisResult, conn) -> None:
                 icon = _OUTCOME_ICONS[result.outcome]
                 st.markdown(f"**{t('card.result')}**  \n{icon} {outcome_headline(result)}")
 
+        # Star and bell share the last column as two icon controls side by
+        # side: both are "do something about this permit" actions rather
+        # than facts about it, so they read as a pair.
         with cols[3]:
-            quick_access.render_star_toggle(conn, "permit_number", result.permit_number)
+            star_col, bell_col = st.columns(2)
+            with star_col:
+                quick_access.render_star_toggle(conn, "permit_number", result.permit_number)
+            with bell_col:
+                quick_access.render_alert_toggle(conn, "permit_number", result.permit_number)
 

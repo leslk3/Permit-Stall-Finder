@@ -1,10 +1,9 @@
-# Installs this project (and, through pyproject.toml, streamlit + duckdb)
-# from the repo root. Streamlit Community Cloud runs pip against this file,
-# so it is what puts permit_stall_finder on the deployed app's import path.
+# Installs this project (and, through pyproject.toml, streamlit + duckdb).
 #
-# A plain "." rather than "-e ." on purpose: an editable install writes a
-# path link that assumes the checkout stays where it was built, which is not
-# a safe assumption on a hosted runner. Local development still uses
-# `pip install -e ".[dev]"` directly, per the README -- that workflow does
-# not read this file.
-.
+# Editable on purpose. A plain "." copies the package into site-packages
+# and leaves research/agent3_knowledge_base.json behind -- it is not
+# packaged -- so the knowledge base loader cannot find it and every search
+# fails at runtime. Editable keeps the installed package pointing at this
+# checkout, where research/ is present. Do not "tidy" this back to "."
+# without first making the knowledge base importable package data.
+-e .

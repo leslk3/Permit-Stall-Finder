@@ -34,33 +34,41 @@ from permit_stall_finder.schema.stall_detection import (
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
-# Candidate locations for the knowledge base, tried in order.
-#
-# The first assumes this module is being imported from a source checkout
-# (src/permit_stall_finder/knowledge_base/loader.py -> repo root), which
-# holds for an editable install and for running from the tree. It does not
-# hold for a normal `pip install .`: the module is copied into
-# site-packages, parents[3] then points at the environment's lib directory,
-# and research/ is not packaged, so the file is simply absent. That is
-# exactly what broke the first Streamlit Cloud deployment.
-#
-# The second covers that case: a deployment checks the repo out and runs
-# from its root, so research/ is present relative to the working directory
-# even when the installed package cannot see it.
-_KB_CANDIDATES = (
-    _REPO_ROOT / "research" / "agent3_knowledge_base.json",
-    Path.cwd() / "research" / "agent3_knowledge_base.json",
-)
+_KB_FILENAME = "agent3_knowledge_base.json"
+
+
+def _candidate_kb_paths() -> "list[Path]":
+    """Every place the knowledge base might reasonably be, best first.
+
+    The first assumes import from a source checkout
+    (src/permit_stall_finder/knowledge_base/loader.py -> repo root), which
+    holds for an editable install and for running from the tree. It does
+    not hold for `pip install .`: the module is copied into site-packages,
+    so that path points at the environment's lib directory, and research/
+    is not packaged. That is what broke the first Cloud deployment.
+
+    The rest walk up from the working directory. A first attempt tried the
+    working directory alone and still failed on Cloud, because that assumed
+    the app is launched from the repo root -- a guess about the host, not
+    something this code can know. Walking the parents removes the guess: as
+    long as the process starts anywhere inside the checkout, research/ is
+    found.
+    """
+    candidates = [_REPO_ROOT / "research" / _KB_FILENAME]
+    cwd = Path.cwd().resolve()
+    for base in (cwd, *cwd.parents):
+        candidates.append(base / "research" / _KB_FILENAME)
+    return candidates
 
 
 def _resolve_kb_path() -> Path:
     """First candidate that exists, else the first one -- so the resulting
     FileNotFoundError names the location a developer would expect rather
     than the last one tried."""
-    for candidate in _KB_CANDIDATES:
+    for candidate in _candidate_kb_paths():
         if candidate.is_file():
             return candidate
-    return _KB_CANDIDATES[0]
+    return _REPO_ROOT / "research" / _KB_FILENAME
 
 
 #: Kept for callers that want the location without loading. Resolved at

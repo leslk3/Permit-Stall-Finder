@@ -23,6 +23,7 @@ from formatting import (
     INTERVAL_STATE_LABELS,
     SEVERITY_COLORS,
     SEVERITY_LABELS,
+    SEVERITY_TEXT_COLORS,
     VERIFICATION_STATUS_LABELS,
     has_mixed_grounding,
     kb_entry_by_id,
@@ -47,9 +48,10 @@ _NO_ENTRY_HEADING = "No authoritative guidance available"
 
 def _severity_badge(detection: DelayStallDetection | FrictionStallDetection) -> str:
     color = SEVERITY_COLORS[detection.severity]
+    text_color = SEVERITY_TEXT_COLORS[detection.severity]
     label = SEVERITY_LABELS[detection.severity]
     return (
-        f'<span style="background-color:{color};color:white;padding:2px 8px;'
+        f'<span style="background-color:{color};color:{text_color};padding:2px 8px;'
         f'border-radius:4px;font-size:0.85em;font-weight:600">{label}</span>'
     )
 

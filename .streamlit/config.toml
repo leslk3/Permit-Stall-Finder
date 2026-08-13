@@ -1,9 +1,14 @@
 [theme]
+# Claude-inspired warm paper ground (light mode) with UCLA Anderson blue as
+# the interactive accent. Gold is deliberately absent from these tokens: at
+# #FFD100 it sits around 1.3:1 against this background, so it is used only
+# as a decorative accent in app/streamlit_app.py, never for text or as a
+# button fill. See UI_STYLE_GUIDE.md.
 base = "light"
-primaryColor = "#D9683C"
-backgroundColor = "#FDF8F2"
-secondaryBackgroundColor = "#F2E6D8"
-textColor = "#2B2622"
+primaryColor = "#2774AE"
+backgroundColor = "#FAF9F5"
+secondaryBackgroundColor = "#F0EEE6"
+textColor = "#1F1E1D"
 font = "sans serif"
 
 [browser]

@@ -32,9 +32,12 @@ class QuickAccessSelection:
     value: str
 
 
+def _pill_icon(kind: str) -> str:
+    return ":material/location_on:" if kind == "address" else ":material/description:"
+
+
 def _pill_label(kind: str, value: str) -> str:
-    icon = "📍" if kind == "address" else "🔖"
-    return f"{icon} {value}"
+    return value
 
 
 def _render_pill_row(
@@ -43,12 +46,17 @@ def _render_pill_row(
     """items is a list of (kind, value). Renders in rows of up to 4 so a
     longer list wraps instead of squeezing every pill into one row."""
     clicked: QuickAccessSelection | None = None
-    for i in range(0, len(items), 4):
-        row = items[i : i + 4]
-        cols = st.columns(len(row))
-        for col, (kind, value) in zip(cols, row):
-            if col.button(_pill_label(kind, value), key=f"{key_prefix}_{kind}_{value}"):
-                clicked = QuickAccessSelection(kind, value)
+    # One per row now that these live in the 320px side panel rather than
+    # across the full page width -- four columns there left no room for a
+    # permit number to render on a single line.
+    for kind, value in items:
+        if st.button(
+            _pill_label(kind, value),
+            key=f"{key_prefix}_{kind}_{value}",
+            icon=_pill_icon(kind),
+            use_container_width=True,
+        ):
+            clicked = QuickAccessSelection(kind, value)
     return clicked
 
 
@@ -71,7 +79,7 @@ def render(conn: duckdb.DuckDBPyConnection) -> QuickAccessSelection | None:
     selection: QuickAccessSelection | None = None
 
     if starred:
-        st.caption("⭐ Starred")
+        st.caption(":material/star: Starred")
         clicked = _render_pill_row(
             [(item.kind, item.value) for item in starred], key_prefix="qa_star"
         )
@@ -86,7 +94,7 @@ def render(conn: duckdb.DuckDBPyConnection) -> QuickAccessSelection | None:
                     st.rerun()
 
     if recent:
-        st.caption("🕒 Recent")
+        st.caption(":material/history: Recent")
         clicked = _render_pill_row(
             [(entry.kind, entry.value) for entry in recent], key_prefix="qa_recent"
         )
@@ -103,8 +111,9 @@ def render_star_toggle(conn: duckdb.DuckDBPyConnection, kind: str, value: str) -
     dropped next to a single-permit result or an address search query so
     starring the thing you're already looking at takes one click."""
     starred = user_state.is_starred(conn, kind, value)
-    label = "★ Starred" if starred else "☆ Star this"
-    if st.button(label, key=f"star_toggle_{kind}_{value}"):
+    label = "Starred" if starred else "Star this"
+    icon = ":material/star:" if starred else ":material/star_outline:"
+    if st.button(label, key=f"star_toggle_{kind}_{value}", icon=icon):
         if starred:
             user_state.unstar_item(conn, kind, value)
         else:

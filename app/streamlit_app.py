@@ -35,6 +35,8 @@ state below.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 import portfolio
@@ -57,18 +59,32 @@ from permit_stall_finder import config
 from permit_stall_finder.orchestration.pipeline import PipelineExecutionError, run_pipeline
 from permit_stall_finder.storage import user_state
 
-st.set_page_config(page_title="Permit Stall Finder", page_icon="🌴", layout="wide")
+# Inlined rather than served through st.image() so the mark can sit inside
+# the hero's own centered markup block and be sized purely by CSS. It's a
+# small static vector; read once at module import, not per rerun.
+_LOGO_SVG = (Path(__file__).parent / "assets" / "logo.svg").read_text()
 
-# Cosmetic only -- a Los Angeles sunset accent bar that also carries the
-# app's own title, instead of a separate thin decorative bar plus a full
-# st.title() heading underneath it. Folding the title into the gradient
-# bar (via a pure-CSS ::after label, since Streamlit's header has no
-# built-in text slot) reclaims the vertical space a second heading row
-# would cost -- consistent with this page's "no scrolling" layout goal.
-# Touches no analytical content or component structure; every fact still
-# comes from PermitAnalysisResult exactly as the section renderers already
-# display it. layout="wide" supports the quick-glance card and portfolio
-# table sitting in a single horizontal strip without wrapping.
+st.set_page_config(
+    page_title="Permit Stall Finder",
+    page_icon="🌴",
+    layout="wide",
+    # Collapsed by default so the landing page is just the search box.
+    # Saved/recent items live in the right-hand panel behind the built-in
+    # sidebar toggle -- available in one click for the daily return user,
+    # invisible to a first-time user who has no history to show.
+    initial_sidebar_state="collapsed",
+)
+
+# Cosmetic only -- an accent bar that also carries the app's own title,
+# instead of a separate thin decorative bar plus a full st.title() heading
+# underneath it. Folding the title into the gradient bar (via a pure-CSS
+# ::after label, since Streamlit's header has no built-in text slot)
+# reclaims the vertical space a second heading row would cost --
+# consistent with this page's "no scrolling" layout goal. Touches no
+# analytical content or component structure; every fact still comes from
+# PermitAnalysisResult exactly as the section renderers already display
+# it. layout="wide" supports the quick-glance card and portfolio table
+# sitting in a single horizontal strip without wrapping.
 #
 # position: relative (overriding Streamlit's default position: fixed) so
 # the header scrolls away with the rest of the page instead of staying
@@ -76,52 +92,199 @@ st.set_page_config(page_title="Permit Stall Finder", page_icon="🌴", layout="w
 # margin-bottom on the header (rather than the earlier block-container
 # padding-top hack, which existed only to keep content from hiding under
 # a fixed header) is what creates breathing room before the page content.
+#
+# Palette: UCLA Anderson blue (#2774AE, with #003B5C for depth) on a warm
+# Claude-style paper ground. UCLA gold appears only as the rule under the
+# header and as the Elevated severity chip -- never as text or a button
+# fill, because #FFD100 against this background is roughly 1.3:1 and
+# unreadable. The gradient runs dark-to-mid blue rather than blue-to-gold
+# so the centered white title keeps ~5:1 contrast across its whole width.
+#
+# Type: Inter stands in for Styrene (UI, labels, all tabular data, where
+# scannability matters) and Source Serif 4 for Tiempos (title and intro
+# prose, where the editorial warmth belongs). Both fall back to installed
+# system faces, so the page still renders correctly with no network.
 st.markdown(
     """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap');
+
+    html, body, [data-testid="stAppViewContainer"],
+    [data-testid="stAppViewContainer"] * {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                     Helvetica, Arial, sans-serif;
+    }
+
+    /* Streamlit draws its icons as ligatures in a Material Symbols font,
+       so the blanket font-family rule above would render them as the
+       literal word ("search"). Put their own font back. */
+    [data-testid="stAppViewContainer"] span[data-testid="stIconMaterial"],
+    [data-testid="stAppViewContainer"] .material-symbols-rounded,
+    [data-testid="stAppViewContainer"] [class*="material-symbols"] {
+        font-family: 'Material Symbols Rounded' !important;
+    }
+
+    /* Editorial serif, scoped to the title and the intro paragraph only --
+       every number, label and table stays in the sans face. */
+    [data-testid="stHeader"]::after,
+    [data-testid="stAppViewContainer"] h1,
+    [data-testid="stAppViewContainer"] h2,
+    p.psf-intro {
+        font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif !important;
+    }
+
+    /* The gradient bar and its CSS-drawn title are gone: the logo now
+       carries the app's identity at the top of the page, so a second
+       branded strip above it would just be chrome competing with the
+       mark. What's left is a transparent strip holding the panel toggle. */
     [data-testid="stHeader"] {
-        background: linear-gradient(90deg, #D9683C 0%, #E0975A 30%, #C8637A 60%, #6E7FA3 100%) !important;
-        height: 3.25rem !important;
+        background: transparent !important;
+        height: 3rem !important;
         position: relative !important;
         overflow: visible !important;
-        margin-bottom: 1.75rem;
     }
-    [data-testid="stHeader"]::after {
-        content: "🌴 Permit Stall Finder";
-        position: absolute;
-        left: 0;
-        top: 0;
+
+    /* --- Centered measure -------------------------------------------
+       layout="wide" is still needed so the quick-glance strip and the
+       portfolio table get room, but a full-bleed text column at 1400px
+       is unreadable. Capping the content and auto-margining it keeps
+       everything on one centered axis. */
+    div.block-container {
+        max-width: 880px;
+        margin: 0 auto;
+        padding-top: 1rem !important;
+    }
+
+    /* --- Landing hero ------------------------------------------------ */
+    .psf-hero {
+        text-align: center;
+        margin: 1.5rem 0 2rem;
+    }
+    /* Square by construction: a fixed box with the square-viewBox SVG
+       filling it, so the mark can never be stretched by its container. */
+    .psf-logo {
+        width: 96px;
+        height: 96px;
+        margin: 0 auto 1.25rem;
+        border-radius: 14px;
+        overflow: hidden;
+        line-height: 0;
+    }
+    .psf-logo svg {
         width: 100%;
         height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 1.35rem;
-        font-weight: 700;
-        letter-spacing: -0.01em;
-        white-space: nowrap;
-        pointer-events: none;
+        display: block;
     }
-    [data-testid="stToolbar"], [data-testid="stMainMenu"], [data-testid="stAppDeployButton"] {
-        display: none;
+    .psf-hero h1 {
+        font-size: 2.75rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        margin: 0 0 0.75rem;
+        color: #1F1E1D;
+    }
+    p.psf-intro {
+        font-size: 1.08rem;
+        line-height: 1.6;
+        color: #56514B;
+        max-width: 60ch;
+        margin: 0 auto;
+    }
+
+    /* Center the search controls under the hero. Streamlit renders tab
+       labels in a flex row, so justify-content is what centers them. */
+    div[data-testid="stFormSubmitButton"] {
+        display: flex;
+        justify-content: center;
+        margin-top: 0.35rem;
+    }
+    div[data-testid="stFormSubmitButton"] button {
+        min-width: 190px;
+    }
+    div[data-testid="stTabs"] button[role="tab"] {
+        flex: 0 0 auto;
+    }
+    div[data-testid="stTabs"] div[role="tablist"] {
+        justify-content: center;
+        gap: 1.5rem;
+    }
+    [data-testid="stTextInputRootElement"] input {
+        text-align: center;
+        font-size: 1.02rem;
+    }
+
+    /* --- Right-hand panel --------------------------------------------
+       Streamlit only ships a left sidebar. The app view container is a
+       flex row, so ordering the sidebar last moves the whole panel --
+       and its built-in collapse control -- to the right edge, without
+       reimplementing a fixed-position panel by hand. flex-shrink is the
+       load-bearing part: without it the main column claims the whole row
+       and squeezes the panel down to a sliver. */
+    [data-testid="stSidebar"] {
+        order: 2;
+        flex-shrink: 0;
+        border-right: none;
+    }
+    /* Streamlit hides the panel by translating it left by its own width,
+       which is right for a left-hand sidebar but slides this one *into*
+       the content as a visible sliver. Collapse it to zero width with no
+       transform instead, and let the flex row reclaim the space. */
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        width: 0 !important;
+        min-width: 0 !important;
+        transform: none !important;
+        overflow: hidden;
+        border-left: none;
+    }
+    [data-testid="stSidebar"][aria-expanded="true"] {
+        width: 320px !important;
+        min-width: 320px !important;
+        transform: none !important;
+        border-left: 1px solid #E6E2D9;
+    }
+    /* The reopen control is anchored top-left for a left sidebar; move it
+       to the right edge so it sits on the side the panel now opens from. */
+    [data-testid="stExpandSidebarButton"] {
+        position: fixed !important;
+        right: 0.75rem;
+        left: auto !important;
+        top: 0.6rem;
+        z-index: 1000;
+    }
+    section.stMain {
+        order: 1;
+    }
+
+    /* Calmer rhythm: more air between lines, softer container edges. */
+    [data-testid="stAppViewContainer"] p,
+    [data-testid="stAppViewContainer"] li {
+        line-height: 1.6;
     }
     div[data-testid="stVerticalBlockBorderWrapper"] {
-        border-radius: 10px;
+        border-radius: 12px;
     }
-    div.block-container {
-        padding-top: 1rem !important;
+    /* Hide the hamburger and Deploy affordances individually rather than
+       hiding stToolbar wholesale -- the sidebar's reopen button is also a
+       child of stToolbar, so hiding the container leaves the collapsed
+       panel with no way back. */
+    [data-testid="stMainMenu"], [data-testid="stAppDeployButton"] {
+        display: none;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.write(
-    "Understand the observable journey of an LA building permit, identify unusual delays or "
-    "process friction, and see grounded guidance on what may happen next. Paste one permit "
-    "number for a full deep-dive, or several to triage a portfolio at once -- or search by "
-    "address if you don't have the permit number handy."
+st.markdown(
+    '<div class="psf-hero">'
+    f'<div class="psf-logo">{_LOGO_SVG}</div>'
+    "<h1>Find your permit</h1>"
+    '<p class="psf-intro">Understand the observable journey of an LA building permit, '
+    "identify unusual delays or process friction, and see grounded guidance on what may "
+    "happen next. Search a permit number for a full deep-dive, several to triage a "
+    "portfolio at once, or a street address if you don't have the number handy.</p>"
+    "</div>",
+    unsafe_allow_html=True,
 )
 
 # --- Session state defaults --------------------------------------------
@@ -137,72 +300,80 @@ if "portfolio_results" not in st.session_state:
 conn = get_connection()
 
 # --- Quick access: starred + recent, for a return user checking the same
-# permit(s) or address every day -- and a Clear results button next to it
+# permit(s) or address every day -- and a Clear results button beneath it
 # so the same daily user can also blank today's search without a page
 # reload. Both act by setting/clearing session_state keys *before* the
 # widgets that own those keys are instantiated further down this script,
-# rather than mutating already-rendered widgets. -------------------------
-qa_selection = quick_access.render(conn)
-
-clear_col, _ = st.columns([1, 5])
-if clear_col.button("Clear results", key="clear_results_button"):
-    st.session_state.result = None
-    st.session_state.error = None
-    st.session_state.portfolio_rows = None
-    st.session_state.portfolio_results = None
-    st.session_state.address_matches = None
-    st.session_state.permit_numbers_input = ""
-    st.session_state.address_query_input = ""
-    for key in list(st.session_state.keys()):
-        if key.startswith("address_match_"):
-            del st.session_state[key]
-    st.rerun()
+# rather than mutating already-rendered widgets.
+#
+# Both now live in the right-hand panel rather than stacked above the
+# search box: they are return-user affordances, and on a first visit
+# (nothing starred, nothing recent) they rendered as dead space directly
+# between the title and the thing everyone actually came to do. -------
+with st.sidebar:
+    st.markdown("### Saved & recent")
+    # render() returns the clicked pill, which is None both when there is
+    # no history and when there is history but nothing was clicked -- so
+    # emptiness has to be read from storage, not inferred from the return.
+    has_history = bool(
+        user_state.read_starred_items(conn) or user_state.read_recent_searches(conn)
+    )
+    qa_selection = quick_access.render(conn)
+    if not has_history:
+        st.caption(
+            "Permits and addresses you search will collect here, and you can star "
+            "the ones you check regularly."
+        )
 
 triggered = False
 permit_numbers: list[str] = []
-auto_run_address = False
 
 if qa_selection is not None:
     if qa_selection.kind == "permit_number":
-        # Pre-fills the text area for visibility, but also runs the
-        # pipeline directly this same rerun -- a starred/recent permit
-        # pill is meant to be a one-click re-run, not a one-click
-        # pre-fill-then-still-have-to-click-Analyze.
-        st.session_state["permit_numbers_input"] = qa_selection.value
+        # Pre-fills the box for visibility, but also runs the pipeline
+        # directly this same rerun -- a starred/recent permit pill is
+        # meant to be a one-click re-run, not a one-click
+        # pre-fill-then-still-have-to-click-Search.
+        st.session_state["search_input"] = qa_selection.value
         triggered = True
         permit_numbers = [qa_selection.value]
     else:
-        st.session_state["address_query_input"] = qa_selection.value
-        auto_run_address = True
+        st.session_state["search_input"] = qa_selection.value
+        address_search.run_query(conn, qa_selection.value)
 
-# --- Search: permit number(s), or address -------------------------------
-# Both tabs' code runs every rerun (Streamlit tabs are a display toggle,
-# not conditional execution) but only the tab whose button was actually
-# clicked this run can set triggered=True, since only one widget click
-# drives any given rerun.
-tab_numbers, tab_address = st.tabs(["Search by permit number", "Search by address"])
-
-with tab_numbers:
-    raw_text = st.text_area(
-        "Permit number(s)",
-        placeholder="21030-20000-00256\n25016-10000-32699",
-        height=100,
+# --- Search: one box for both permit numbers and addresses --------------
+# Replaces the earlier two-tab layout. A user who has a permit number and
+# a user who only has an address were being asked to classify their own
+# input before typing it; the format of a permit number is distinctive
+# enough (portfolio.looks_like_permit_number) to make that decision here
+# instead. Every token has to look like a permit number for this to run
+# the permit path -- a mixed or unrecognized entry is treated as an
+# address, which is the safer fallback since the address lookup returns a
+# pick-list rather than failing outright.
+#
+# A form rather than a bare input + button so Enter submits, the way any
+# search field is expected to behave.
+with st.form("unified_search", border=False, clear_on_submit=False):
+    raw_text = st.text_input(
+        "Permit number or address",
+        placeholder="Permit number or street address",
         label_visibility="collapsed",
-        key="permit_numbers_input",
+        key="search_input",
     )
-    if st.button("Analyze", type="primary", key="analyze_numbers_button"):
-        parsed = portfolio.parse_permit_numbers(raw_text)
-        if not parsed:
-            st.warning("Enter at least one permit number.")
-        else:
+    if st.form_submit_button("Search", type="primary", icon=":material/search:"):
+        tokens = portfolio.parse_permit_numbers(raw_text)
+        if not tokens:
+            st.warning("Enter a permit number or a street address.")
+        elif all(portfolio.looks_like_permit_number(t) for t in tokens):
             triggered = True
-            permit_numbers = parsed
+            permit_numbers = tokens
+        else:
+            address_search.run_query(conn, raw_text)
 
-with tab_address:
-    address_submitted, address_permit_numbers = address_search.render(conn, auto_run=auto_run_address)
-    if address_submitted:
-        triggered = True
-        permit_numbers = address_permit_numbers
+address_submitted, address_permit_numbers = address_search.render_matches(conn)
+if address_submitted:
+    triggered = True
+    permit_numbers = address_permit_numbers
 
 # --- Run the pipeline: one permit goes straight to the deep dive, two or
 # more go to the portfolio table. This is the only place that decision is
@@ -239,7 +410,11 @@ if triggered:
                 + ", ".join(p for p, _ in batch.errors)
             )
 
-st.divider()
+# Only rule off the search once there is something below it to separate --
+# on a first load the divider was drawing a line under an otherwise empty
+# page.
+if st.session_state.portfolio_rows or st.session_state.result or st.session_state.error:
+    st.divider()
 
 # --- Portfolio table, if a batch has been run ----------------------------
 if st.session_state.portfolio_rows:
@@ -260,25 +435,30 @@ if st.session_state.error:
 result = st.session_state.result
 if result is not None:
     # Always visible, no scrolling required: the quick-glance strip, the
-    # map, the neutral top-level read, and a concrete next action. Deeper
-    # material (full journey, per-finding explanation cards,
+    # neutral top-level read, and a concrete next action. Deeper material
+    # (the map, full journey, per-finding explanation cards,
     # coverage/data-quality notes) sits behind an explicit show/hide
     # toggle -- collapsed by default -- rather than always rendering a
     # long page. The disclaimer itself stays outside the toggle and always
     # renders, per UI_DESIGN.md's "never hide the disclaimer" decision.
+    #
+    # The map moved in behind the toggle: at 280px tall it was the largest
+    # element on the page and sat directly above the verdict everyone came
+    # for, pushing that verdict down. Where a permit is was never the
+    # question this tool answers.
     quick_glance.render(result)
     st.caption(f"Permit {result.permit_number}")
     quick_access.render_star_toggle(conn, "permit_number", result.permit_number)
 
-    location_map.render(result)
     top_level_result.render(result)
     next_best_action.render(result, get_knowledge_base())
 
     show_full_analysis = st.toggle(
-        "Show full analysis (permit journey, finding-by-finding explanations, coverage notes)",
+        "Show full analysis (location, permit journey, finding-by-finding explanations, coverage notes)",
         value=False,
     )
     if show_full_analysis:
+        location_map.render(result)
         permit_journey.render(result.journey)
         stall_findings.render(result.stall_assessment, result.developer_explanations, get_knowledge_base())
         coverage_gaps.render(result.coverage_gaps, result.data_quality_flags)

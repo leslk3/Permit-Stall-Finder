@@ -9,9 +9,9 @@ from formatting import outcome_headline
 from permit_stall_finder.orchestration.pipeline import AnalysisOutcome, PermitAnalysisResult
 
 _ICONS = {
-    AnalysisOutcome.NO_MATERIAL_STALL_DETECTED: "✅",
-    AnalysisOutcome.INSUFFICIENT_EVIDENCE: "🔍",
-    AnalysisOutcome.STALL_DETECTED: "📋",
+    AnalysisOutcome.NO_MATERIAL_STALL_DETECTED: ":material/check_circle:",
+    AnalysisOutcome.INSUFFICIENT_EVIDENCE: ":material/help:",
+    AnalysisOutcome.STALL_DETECTED: ":material/flag:",
 }
 
 

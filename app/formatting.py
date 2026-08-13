@@ -50,11 +50,28 @@ SEVERITY_LABELS: dict[Severity, str] = {
 }
 
 # Muted, non-alarmist palette -- no pure red. See UI_DESIGN.md decision 3.
+#
+# Re-tuned to UCLA Anderson blue/gold while keeping that decision intact:
+# Watch and Elevated now read as the institutional blue and gold, and
+# Severe stays a muted terracotta rather than escalating to red. Every
+# pairing below clears WCAG AA (4.5:1) against its own text color --
+# notably Elevated, where gold is bright enough that white text would fail
+# badly (~1.9:1) and dark text is required instead.
 SEVERITY_COLORS: dict[Severity, str] = {
-    Severity.WATCH: "#5B7A99",       # muted blue
-    Severity.ELEVATED: "#B8860B",    # muted amber
+    Severity.WATCH: "#005587",       # UCLA darker blue
+    Severity.ELEVATED: "#FFC72C",    # UCLA darker gold
     Severity.SEVERE: "#B0553F",      # muted terracotta, not pure red
-    Severity.UNSCORED: "#888888",    # grey
+    Severity.UNSCORED: "#6B6B6B",    # grey
+}
+
+# Foreground for each badge, paired with SEVERITY_COLORS above. Gold is the
+# reason this map exists -- a single hardcoded "white" cannot serve a
+# palette that spans a dark blue and a bright gold.
+SEVERITY_TEXT_COLORS: dict[Severity, str] = {
+    Severity.WATCH: "#FFFFFF",
+    Severity.ELEVATED: "#1F1E1D",
+    Severity.SEVERE: "#FFFFFF",
+    Severity.UNSCORED: "#FFFFFF",
 }
 
 MATCH_STATUS_LABELS: dict[MatchStatus, str] = {

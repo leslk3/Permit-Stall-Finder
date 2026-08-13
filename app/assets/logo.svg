@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img"
+     aria-label="Permit Stall Finder logo: a house inside a magnifying glass">
+  <rect width="512" height="512" fill="#27496E"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Lens and handle -->
+    <circle cx="236" cy="228" r="158" stroke="#FFFFFF" stroke-width="17"/>
+    <path d="M352 344 L446 438" stroke="#FFFFFF" stroke-width="34"/>
+    <!-- Front half of the house, in white -->
+    <g stroke="#FFFFFF" stroke-width="15">
+      <path d="M145 252 L240 176"/>
+      <path d="M152 252 L152 344"/>
+      <path d="M132 344 L240 344"/>
+      <rect x="176" y="256" width="36" height="36"/>
+      <path d="M176 344 L176 306 L212 306 L212 344"/>
+    </g>
+    <!-- Receding half, in UCLA gold -->
+    <g stroke="#F0C43C" stroke-width="15">
+      <path d="M240 176 L336 252"/>
+      <path d="M240 252 L336 252"/>
+      <path d="M336 252 L336 344"/>
+      <path d="M240 252 L240 344"/>
+      <path d="M240 300 L336 300"/>
+      <path d="M288 252 L288 344"/>
+      <path d="M240 344 L352 344"/>
+    </g>
+  </g>
+</svg>

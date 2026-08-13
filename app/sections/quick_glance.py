@@ -17,14 +17,19 @@ from __future__ import annotations
 
 import streamlit as st
 
-from formatting import SEVERITY_COLORS, SEVERITY_LABELS, outcome_headline
+from formatting import (
+    SEVERITY_COLORS,
+    SEVERITY_LABELS,
+    SEVERITY_TEXT_COLORS,
+    outcome_headline,
+)
 from permit_stall_finder.orchestration.pipeline import AnalysisOutcome, PermitAnalysisResult
 from permit_stall_finder.schema.stall_detection import Severity
 
 _OUTCOME_ICONS = {
-    AnalysisOutcome.NO_MATERIAL_STALL_DETECTED: "✅",
-    AnalysisOutcome.INSUFFICIENT_EVIDENCE: "🔍",
-    AnalysisOutcome.STALL_DETECTED: "📋",
+    AnalysisOutcome.NO_MATERIAL_STALL_DETECTED: ":material/check_circle:",
+    AnalysisOutcome.INSUFFICIENT_EVIDENCE: ":material/help:",
+    AnalysisOutcome.STALL_DETECTED: ":material/flag:",
 }
 
 _SEVERITY_RANK: dict[Severity, int] = {
@@ -49,8 +54,6 @@ def _top_severity(result: PermitAnalysisResult) -> Severity | None:
 
 def render(result: PermitAnalysisResult) -> None:
     snapshot = result.journey.latest_snapshot
-    address = (snapshot.raw.get("primary_address") if snapshot else None) or "—"
-    permit_type = snapshot.permit_type if snapshot else "—"
     status_desc = snapshot.status_desc if snapshot else "—"
     days = (
         result.journey.derived.days_submitted_to_current_status
@@ -59,22 +62,25 @@ def render(result: PermitAnalysisResult) -> None:
     )
     severity = _top_severity(result)
 
+    # Three columns, not six. Permit number, address and permit type all
+    # repeat below -- the number in the caption directly under this card,
+    # the other two in the journey section -- so the strip now carries
+    # only what is unique to it: where the permit stands, how long it has
+    # stood there, and the verdict.
     with st.container(border=True):
-        cols = st.columns(6)
-        cols[0].markdown(f"**Permit**  \n{result.permit_number}")
-        cols[1].markdown(f"**Address**  \n{address}")
-        cols[2].markdown(f"**Type**  \n{permit_type}")
-        cols[3].markdown(f"**Status**  \n{status_desc}")
-        cols[4].markdown(f"**Days in status**  \n{days if days is not None else '—'}")
+        cols = st.columns(3)
+        cols[0].markdown(f"**Status**  \n{status_desc}")
+        cols[1].markdown(f"**Days in status**  \n{days if days is not None else '—'}")
 
         if severity is not None:
             color = SEVERITY_COLORS[severity]
+            text_color = SEVERITY_TEXT_COLORS[severity]
             badge = (
-                f'<span style="background-color:{color};color:white;padding:2px 10px;'
+                f'<span style="background-color:{color};color:{text_color};padding:2px 10px;'
                 f'border-radius:4px;font-weight:600">{SEVERITY_LABELS[severity]}</span>'
             )
-            cols[5].markdown(f"**Top finding**  \n{badge}", unsafe_allow_html=True)
+            cols[2].markdown(f"**Top finding**  \n{badge}", unsafe_allow_html=True)
         else:
             icon = _OUTCOME_ICONS[result.outcome]
-            cols[5].markdown(f"**Result**  \n{icon} {outcome_headline(result)}")
+            cols[2].markdown(f"**Result**  \n{icon} {outcome_headline(result)}")
 

@@ -20,6 +20,7 @@ into the same batch-run-and-display logic.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import streamlit as st
@@ -132,6 +133,19 @@ def sort_rows(rows: list[PortfolioRow]) -> list[PortfolioRow]:
     labels, sorted -- never a new judgment about which permit is "worse"
     than Agent 2 didn't already imply via its own severity assignment."""
     return sorted(rows, key=lambda r: r.sort_key, reverse=True)
+
+
+_PERMIT_NUMBER_RE = re.compile(r"^\d{2,6}-\d{4,6}-\d{4,6}$")
+
+
+def looks_like_permit_number(token: str) -> bool:
+    """True for the LADBS three-group all-digit permit number format, e.g.
+    21030-20000-00256. Deliberately strict: this decides whether the one
+    unified search box treats what was typed as permit number(s) or as a
+    street address, and a false positive sends an address to the permit
+    pipeline where it can only fail. Anything that isn't unambiguously a
+    permit number is better handled as an address."""
+    return bool(_PERMIT_NUMBER_RE.match(token.strip()))
 
 
 def parse_permit_numbers(raw_text: str) -> list[str]:

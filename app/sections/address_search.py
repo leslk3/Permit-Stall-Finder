@@ -38,42 +38,32 @@ def _format_match_label(row: dict) -> str:
     return f"**{permit_nbr}** — {permit_type} — {status_desc} — {address}"
 
 
-def render(conn: duckdb.DuckDBPyConnection, *, auto_run: bool = False) -> tuple[bool, list[str]]:
+def run_query(conn: duckdb.DuckDBPyConnection, query: str) -> None:
+    """Fetches permits for one address and parks them in session_state for
+    render_matches() to draw. Split out from the rendering half so the
+    single unified search box in streamlit_app.py can drive an address
+    lookup without this module owning an input widget of its own."""
+    cleaned = query.strip()
+    if not cleaned:
+        st.session_state.address_matches = None
+        return
+    try:
+        st.session_state.address_matches = fetch_permits_by_address(cleaned)
+        st.session_state.address_query_value = cleaned
+        user_state.record_search(conn, "address", cleaned)
+    except Exception:
+        st.session_state.address_matches = None
+        st.error(GENERIC_ERROR_MESSAGE)
+
+
+def render_matches(conn: duckdb.DuckDBPyConnection) -> tuple[bool, list[str]]:
     """Returns (submitted, permit_numbers). submitted is True only on the
     Streamlit run where the user just clicked "Analyze selected" --
     callers should treat submitted=False as "nothing to do yet", not as
-    "the search found nothing".
-
-    auto_run=True re-runs the search immediately using whatever's already
-    in the address input's session_state -- streamlit_app.py sets that
-    when a user clicks a starred/recent address pill in quick_access.py,
-    so picking a past address search behaves exactly like typing it and
-    clicking "Search by address" again."""
-    st.caption(
-        "Don't know the permit number? Search by street address and pick the permit(s) "
-        "you want analyzed."
-    )
-    address_query = st.text_input(
-        "Street address", placeholder="e.g. 200 N Spring St", key="address_query_input"
-    )
-    search_clicked = st.button("Search by address", key="address_search_button")
-
-    if search_clicked or auto_run:
-        query = address_query.strip()
-        if not query:
-            st.session_state.address_matches = None
-            if search_clicked:
-                st.warning("Enter a street address to search.")
-        else:
-            try:
-                st.session_state.address_matches = fetch_permits_by_address(query)
-                user_state.record_search(conn, "address", query)
-            except Exception:
-                st.session_state.address_matches = None
-                st.error(GENERIC_ERROR_MESSAGE)
-
-    if address_query.strip():
-        quick_access.render_star_toggle(conn, "address", address_query.strip())
+    "the search found nothing"."""
+    address_query = st.session_state.get("address_query_value", "")
+    if address_query:
+        quick_access.render_star_toggle(conn, "address", address_query)
 
     matches = st.session_state.get("address_matches")
     if matches is not None and not matches:

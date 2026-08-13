@@ -74,13 +74,19 @@ def render(result: PermitAnalysisResult, kb: KnowledgeBase) -> None:
         f"→ [Search LADBS's online building records for this address]({LADBS_RECORDS_SEARCH_URL})"
     )
 
-    st.markdown("**Talk to a person**")
-    st.markdown(
-        f"Call {LADBS_311_LINE} or {LADBS_OUTSIDE_LA_PHONE} to reach LADBS customer service -- "
-        "they take inspection requests, answer general questions, and can route zoning or "
-        "code questions to an engineer or inspector."
-    )
-    st.markdown(f"For a case that needs deeper attention: {LADBS_CASE_MANAGEMENT_CONTACT}")
+    # Collapsed rather than always-on: two phone numbers and a named
+    # escalation contact is a paragraph of contact detail that only
+    # matters once a user has decided to pick up the phone, and it was
+    # rendering between the action links and the analysis toggle on every
+    # single result. The content is unchanged -- only its default
+    # visibility.
+    with st.expander("Talk to a person"):
+        st.markdown(
+            f"Call {LADBS_311_LINE} or {LADBS_OUTSIDE_LA_PHONE} to reach LADBS customer "
+            "service -- they take inspection requests, answer general questions, and can "
+            "route zoning or code questions to an engineer or inspector."
+        )
+        st.markdown(f"For a case that needs deeper attention: {LADBS_CASE_MANAGEMENT_CONTACT}")
 
     seen_entry_ids: set[str] = set()
     source_links: list[tuple[str, str, str]] = []  # (category label, source title, url)

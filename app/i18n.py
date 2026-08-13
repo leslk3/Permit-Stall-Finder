@@ -61,10 +61,11 @@ _STRINGS: dict[str, dict[str, str]] = {
     "search.spinner": {"en": "Analysing permit...", "es": "Analizando el permiso..."},
     # --- Results -------------------------------------------------------
     "results.back": {"en": "New search", "es": "Nueva búsqueda"},
-    "results.toggle": {
-        "en": "Show full analysis (location, permit journey, finding-by-finding explanations, coverage notes)",
-        "es": "Ver el análisis completo (ubicación, recorrido del permiso, explicación de cada hallazgo, notas de cobertura)",
+    "results.reader_hint": {
+        "en": "Full analysis — location, permit journey, finding-by-finding explanations and coverage notes — opens in the reader pane, using the control at the top right.",
+        "es": "El análisis completo —ubicación, recorrido del permiso, explicación de cada hallazgo y notas de cobertura— se abre en el panel de lectura, con el control en la parte superior derecha.",
     },
+    "panel.reader": {"en": "Full analysis", "es": "Análisis completo"},
     "results.english_note": {
         "en": "",
         "es": (

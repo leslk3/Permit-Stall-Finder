@@ -361,6 +361,24 @@ conn = get_connection()
 # search box: they are return-user affordances, and on a first visit
 # (nothing starred, nothing recent) they rendered as dead space directly
 # between the title and the thing everyone actually came to do. -------
+#
+# 320px is right for a list of saved pills and far too narrow for the
+# reader pane's contents -- the finding cards lay their metrics out in
+# three columns and the map wants real width. Widened only on the results
+# screen, where the panel is doing a different job.
+if st.session_state.view == "results":
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"][aria-expanded="true"] {
+            width: 560px !important;
+            min-width: 560px !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 with st.sidebar:
     # Language first: it reframes everything rendered after it, and this
     # widget writes st.session_state["language"], which i18n.t() reads. It
@@ -378,16 +396,38 @@ with st.sidebar:
         format_func=lambda code: i18n.LANGUAGES[code],
         key="language",
     )
-    st.markdown(f"### {i18n.t('panel.heading')}")
-    # render() returns the clicked pill, which is None both when there is
-    # no history and when there is history but nothing was clicked -- so
-    # emptiness has to be read from storage, not inferred from the return.
-    has_history = bool(
-        user_state.read_starred_items(conn) or user_state.read_recent_searches(conn)
-    )
-    qa_selection = quick_access.render(conn)
-    if not has_history:
-        st.caption(i18n.t("panel.empty"))
+    # The panel carries different cargo on each screen. On the landing
+    # page it is saved/recent -- the things that help you start a search.
+    # On the results screen it becomes a reader pane holding the deep-dive
+    # material that used to sit behind a "show full analysis" toggle in the
+    # main column, so the long-form reading has its own column instead of
+    # unrolling underneath the summary. Saved/recent is not shown there:
+    # it is a way in, and on the results screen you are already in.
+    qa_selection = None
+    reader_result = st.session_state.get("result")
+
+    if st.session_state.get("view") == "results" and reader_result is not None:
+        st.markdown(f"### {i18n.t('panel.reader')}")
+        location_map.render(reader_result)
+        permit_journey.render(reader_result.journey)
+        stall_findings.render(
+            reader_result.stall_assessment,
+            reader_result.developer_explanations,
+            get_knowledge_base(),
+        )
+        coverage_gaps.render(reader_result.coverage_gaps, reader_result.data_quality_flags)
+    else:
+        st.markdown(f"### {i18n.t('panel.heading')}")
+        # render() returns the clicked pill, which is None both when there
+        # is no history and when there is history but nothing was clicked
+        # -- so emptiness has to be read from storage, not inferred from
+        # the return.
+        has_history = bool(
+            user_state.read_starred_items(conn) or user_state.read_recent_searches(conn)
+        )
+        qa_selection = quick_access.render(conn)
+        if not has_history:
+            st.caption(i18n.t("panel.empty"))
 
 triggered = False
 permit_numbers: list[str] = []
@@ -560,12 +600,12 @@ if result is not None:
     quick_glance.render(result, conn)
     next_best_action.render(result, get_knowledge_base())
 
-    show_full_analysis = st.toggle(i18n.t("results.toggle"), value=False)
-    if show_full_analysis:
-        location_map.render(result)
-        permit_journey.render(result.journey)
-        stall_findings.render(result.stall_assessment, result.developer_explanations, get_knowledge_base())
-        coverage_gaps.render(result.coverage_gaps, result.data_quality_flags)
+    # The show/hide toggle is gone: that material now lives in the reader
+    # pane rendered above. Streamlit has no API to open its sidebar
+    # programmatically, so this is a pointer to the pane's own control
+    # rather than a button that opens it -- without the line, the deep
+    # dive would be a column the reader has no reason to know exists.
+    st.caption(i18n.t("results.reader_hint"))
 
     disclaimer.render(result.developer_explanations.disclaimer)
 

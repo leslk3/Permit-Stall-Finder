@@ -6,6 +6,9 @@ requires-python = ">=3.9"
 dependencies = [
     "duckdb>=1.0",
     "streamlit>=1.30",
+    # Pure Python, so it installs on hosts where system libraries cannot be
+    # added -- which rules out the HTML-to-PDF engines needing cairo/pango.
+    "reportlab>=4.0",
 ]
 
 [project.optional-dependencies]

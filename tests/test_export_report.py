@@ -206,3 +206,86 @@ def test_missing_permit_record_does_not_crash_the_report():
 
     assert "No permit record was found" in report
     assert DISCLAIMER in report
+
+
+# --- the block model ---------------------------------------------------
+#
+# Content lives in the blocks; the Markdown and PDF renderers only decide
+# how it looks. Asserting content here rather than against PDF bytes is
+# deliberate: reportlab wraps long paragraphs across separate text-drawing
+# operators, so a phrase like "official determination" is genuinely not
+# present as a contiguous byte run even though it renders correctly. A test
+# that grepped the PDF for prose would be testing line-break luck.
+
+
+def _kinds(blocks):
+    return [kind for kind, _ in blocks]
+
+
+def test_blocks_open_with_title_disclaimer_and_generation_note():
+    blocks = export_report.report_blocks(_result(), generated_at=GENERATED_AT)
+
+    assert _kinds(blocks)[:3] == ["title", "disclaimer", "meta"]
+
+
+def test_disclaimer_is_carried_twice_in_the_blocks():
+    blocks = export_report.report_blocks(_result(), generated_at=GENERATED_AT)
+
+    carried = [payload for kind, payload in blocks if kind in ("disclaimer", "small")]
+    assert carried.count(DISCLAIMER) == 2
+
+
+def test_blocks_end_with_the_fine_print():
+    blocks = export_report.report_blocks(_result(), generated_at=GENERATED_AT)
+
+    assert _kinds(blocks)[-3:] == ["rule", "small", "small"]
+
+
+# --- PDF ---------------------------------------------------------------
+
+
+def test_pdf_is_a_valid_non_trivial_document():
+    pdf = export_report.build_pdf(_result(), generated_at=GENERATED_AT)
+
+    assert pdf[:5] == b"%PDF-"
+    assert len(pdf) > 1000
+
+
+def test_pdf_renders_every_block_kind_without_raising():
+    """Exercises tables, bullets, nested headings and the callout together
+    -- the combination a real stalled permit produces."""
+    result = _result(
+        detections=[_detection()],
+        explanations=[_explanation()],
+        inspection_events=[
+            SimpleNamespace(
+                inspection_date=date(2022, 4, 13),
+                inspection_type="Special/Order Compliance",
+                inspection_result="Corrections Issued",
+            )
+        ],
+        coverage_gaps=["Cohort sample was smaller than the configured minimum."],
+        data_quality_flags=[DataQualityFlag.FIRST_OBSERVATION],
+    )
+
+    pdf = export_report.build_pdf(result, generated_at=GENERATED_AT)
+
+    assert pdf[:5] == b"%PDF-"
+
+
+def test_pdf_handles_a_permit_with_no_record():
+    pdf = export_report.build_pdf(_result(snapshot_present=False), generated_at=GENERATED_AT)
+
+    assert pdf[:5] == b"%PDF-"
+
+
+def test_pdf_escapes_markup_in_source_text():
+    """Source strings reach reportlab as mini-HTML, so an ampersand or a
+    stray angle bracket in a work description must not be interpreted as a
+    tag -- or the document fails to build at all."""
+    result = _result()
+    result.journey.latest_snapshot.work_description = "REPAIR <ROOF> & DECK"
+
+    pdf = export_report.build_pdf(result, generated_at=GENERATED_AT)
+
+    assert pdf[:5] == b"%PDF-"

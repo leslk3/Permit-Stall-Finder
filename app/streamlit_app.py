@@ -40,6 +40,7 @@ from pathlib import Path
 
 import streamlit as st
 
+import i18n
 import portfolio
 from db import get_connection, get_knowledge_base
 from errors import safe_error_message, validate_permit_number
@@ -53,7 +54,6 @@ from sections import (
     quick_access,
     quick_glance,
     stall_findings,
-    top_level_result,
 )
 
 from permit_stall_finder import config
@@ -331,18 +331,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown(
-    '<div class="psf-hero">'
-    f'<div class="psf-logo">{_LOGO_MARKUP}</div>'
-    "<h1>Find your permit</h1>"
-    '<p class="psf-intro">Understand the observable journey of an LA building permit, '
-    "identify unusual delays or process friction, and see grounded guidance on what may "
-    "happen next. Search a permit number for a full deep-dive, several to triage a "
-    "portfolio at once, or a street address if you don't have the number handy.</p>"
-    "</div>",
-    unsafe_allow_html=True,
-)
-
 # --- Session state defaults --------------------------------------------
 if "result" not in st.session_state:
     st.session_state.result = None
@@ -352,6 +340,13 @@ if "portfolio_rows" not in st.session_state:
     st.session_state.portfolio_rows = None
 if "portfolio_results" not in st.session_state:
     st.session_state.portfolio_results = None
+# "search" shows the landing page; "results" replaces it with the analysis
+# view. A single script with a view switch rather than st.navigation pages:
+# the two screens share the result in session_state and the right-hand
+# panel, and st.navigation would add its own page nav into that same
+# sidebar, competing with the saved/recent list already living there.
+if "view" not in st.session_state:
+    st.session_state.view = "search"
 
 conn = get_connection()
 
@@ -367,7 +362,23 @@ conn = get_connection()
 # (nothing starred, nothing recent) they rendered as dead space directly
 # between the title and the thing everyone actually came to do. -------
 with st.sidebar:
-    st.markdown("### Saved & recent")
+    # Language first: it reframes everything rendered after it, and this
+    # widget writes st.session_state["language"], which i18n.t() reads. It
+    # is instantiated before any translated string on the page below.
+    # Seeded through session_state rather than the widget's own default=,
+    # which reasserts itself on every script run when a key is also given
+    # and so silently snapped the choice back to English on the very next
+    # rerun. Seeding once and letting the key own the value afterwards is
+    # what makes the selection stick.
+    if "language" not in st.session_state:
+        st.session_state.language = i18n.DEFAULT_LANGUAGE
+    st.segmented_control(
+        i18n.t("panel.language"),
+        options=list(i18n.LANGUAGES),
+        format_func=lambda code: i18n.LANGUAGES[code],
+        key="language",
+    )
+    st.markdown(f"### {i18n.t('panel.heading')}")
     # render() returns the clicked pill, which is None both when there is
     # no history and when there is history but nothing was clicked -- so
     # emptiness has to be read from storage, not inferred from the return.
@@ -376,10 +387,7 @@ with st.sidebar:
     )
     qa_selection = quick_access.render(conn)
     if not has_history:
-        st.caption(
-            "Permits and addresses you search will collect here, and you can star "
-            "the ones you check regularly."
-        )
+        st.caption(i18n.t("panel.empty"))
 
 triggered = False
 permit_numbers: list[str] = []
@@ -409,35 +417,47 @@ if qa_selection is not None:
 #
 # A form rather than a bare input + button so Enter submits, the way any
 # search field is expected to behave.
-with st.form("unified_search", border=False, clear_on_submit=False):
-    field_col, submit_col = st.columns([14, 1], vertical_alignment="center")
-    with field_col:
-        raw_text = st.text_input(
-            "Permit number or address",
-            placeholder="Permit number or street address",
-            label_visibility="collapsed",
-            key="search_input",
-        )
-    # Icon-only submit sitting beside the field instead of a labelled
-    # button beneath it. The visible label is gone but the accessible name
-    # is not: the CSS clips the text rather than display:none-ing it, so
-    # the button still announces as "Search" to a screen reader.
-    with submit_col:
-        submitted = st.form_submit_button("Search", icon=":material/search:")
-    if submitted:
-        tokens = portfolio.parse_permit_numbers(raw_text)
-        if not tokens:
-            st.warning("Enter a permit number or a street address.")
-        elif all(portfolio.looks_like_permit_number(t) for t in tokens):
-            triggered = True
-            permit_numbers = tokens
-        else:
-            address_search.run_query(conn, raw_text)
+if st.session_state.view == "search":
+    st.markdown(
+        '<div class="psf-hero">'
+        f'<div class="psf-logo">{_LOGO_MARKUP}</div>'
+        f"<h1>{i18n.t('hero.title')}</h1>"
+        f'<p class="psf-intro">{i18n.t("hero.subtitle")}</p>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
-address_submitted, address_permit_numbers = address_search.render_matches(conn)
-if address_submitted:
-    triggered = True
-    permit_numbers = address_permit_numbers
+    with st.form("unified_search", border=False, clear_on_submit=False):
+        field_col, submit_col = st.columns([14, 1], vertical_alignment="center")
+        with field_col:
+            raw_text = st.text_input(
+                "Permit number or address",
+                placeholder=i18n.t("search.placeholder"),
+                label_visibility="collapsed",
+                key="search_input",
+            )
+        # Icon-only submit sitting beside the field instead of a labelled
+        # button beneath it. The visible label is gone but the accessible
+        # name is not: the CSS clips the text rather than display:none-ing
+        # it, so the button still announces as "Search" to a screen reader.
+        with submit_col:
+            submitted = st.form_submit_button(
+                i18n.t("search.submit"), icon=":material/search:"
+            )
+        if submitted:
+            tokens = portfolio.parse_permit_numbers(raw_text)
+            if not tokens:
+                st.warning(i18n.t("search.empty"))
+            elif all(portfolio.looks_like_permit_number(tok) for tok in tokens):
+                triggered = True
+                permit_numbers = tokens
+            else:
+                address_search.run_query(conn, raw_text)
+
+    address_submitted, address_permit_numbers = address_search.render_matches(conn)
+    if address_submitted:
+        triggered = True
+        permit_numbers = address_permit_numbers
 
 # --- Run the pipeline: one permit goes straight to the deep dive, two or
 # more go to the portfolio table. This is the only place that decision is
@@ -451,7 +471,7 @@ if triggered:
             st.session_state.error = validation_error
         else:
             try:
-                with st.spinner("Analysing permit..."):
+                with st.spinner(i18n.t("search.spinner")):
                     result = run_pipeline(conn, permit_number)
                 st.session_state.result = result
                 st.session_state.portfolio_rows = None
@@ -469,16 +489,36 @@ if triggered:
             user_state.record_search(conn, "permit_number", permit_number)
         if batch.errors:
             st.warning(
-                f"{len(batch.errors)} permit(s) couldn't be analyzed right now (the city's open "
-                "data service may be temporarily unavailable) and are omitted below: "
+                f"{len(batch.errors)} {i18n.t('results.batch_errors')} "
                 + ", ".join(p for p, _ in batch.errors)
             )
 
-# Only rule off the search once there is something below it to separate --
-# on a first load the divider was drawing a line under an otherwise empty
-# page.
-if st.session_state.portfolio_rows or st.session_state.result or st.session_state.error:
-    st.divider()
+    # A completed run leaves the landing page behind for the analysis
+    # screen. The rerun is what makes it a page switch rather than a page
+    # that grows: without it the hero and the search box stay rendered
+    # above the results for the rest of this script run.
+    if st.session_state.result is not None or st.session_state.portfolio_rows:
+        st.session_state.view = "results"
+        st.rerun()
+
+if st.session_state.view != "results":
+    st.stop()
+
+# ======================= Results screen ================================
+if st.button(i18n.t("results.back"), icon=":material/arrow_back:", key="back_to_search"):
+    st.session_state.view = "search"
+    st.session_state.result = None
+    st.session_state.error = None
+    st.session_state.portfolio_rows = None
+    st.session_state.portfolio_results = None
+    st.session_state.address_matches = None
+    for key in list(st.session_state.keys()):
+        if key.startswith("address_match_"):
+            del st.session_state[key]
+    st.rerun()
+
+if i18n.current_language() != "en":
+    st.caption(i18n.t("results.english_note"))
 
 # --- Portfolio table, if a batch has been run ----------------------------
 if st.session_state.portfolio_rows:
@@ -510,17 +550,17 @@ if result is not None:
     # element on the page and sat directly above the verdict everyone came
     # for, pushing that verdict down. Where a permit is was never the
     # question this tool answers.
-    quick_glance.render(result)
-    st.caption(f"Permit {result.permit_number}")
-    quick_access.render_star_toggle(conn, "permit_number", result.permit_number)
-
-    top_level_result.render(result)
+    # The permit number, the star control and the severity tally are all
+    # inside quick_glance's bordered card now -- they were a caption, a
+    # button and a separate coloured banner stacked underneath it, which
+    # read as four unrelated blocks rather than one summary. That banner
+    # was top_level_result's whole job, so it no longer renders here; the
+    # card's own "Top finding"/"Result" cell carries the same headline,
+    # and the per-finding detail is unchanged inside the toggle below.
+    quick_glance.render(result, conn)
     next_best_action.render(result, get_knowledge_base())
 
-    show_full_analysis = st.toggle(
-        "Show full analysis (location, permit journey, finding-by-finding explanations, coverage notes)",
-        value=False,
-    )
+    show_full_analysis = st.toggle(i18n.t("results.toggle"), value=False)
     if show_full_analysis:
         location_map.render(result)
         permit_journey.render(result.journey)

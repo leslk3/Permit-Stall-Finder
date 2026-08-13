@@ -17,12 +17,9 @@ from __future__ import annotations
 
 import streamlit as st
 
-from formatting import (
-    SEVERITY_COLORS,
-    SEVERITY_LABELS,
-    SEVERITY_TEXT_COLORS,
-    outcome_headline,
-)
+from formatting import SEVERITY_COLORS, SEVERITY_TEXT_COLORS, outcome_headline
+from i18n import severity_label, t
+from sections import quick_access
 from permit_stall_finder.orchestration.pipeline import AnalysisOutcome, PermitAnalysisResult
 from permit_stall_finder.schema.stall_detection import Severity
 
@@ -52,35 +49,48 @@ def _top_severity(result: PermitAnalysisResult) -> Severity | None:
     return max(severities, key=lambda s: _SEVERITY_RANK[s])
 
 
-def render(result: PermitAnalysisResult) -> None:
-    snapshot = result.journey.latest_snapshot
-    status_desc = snapshot.status_desc if snapshot else "—"
+def render(result: PermitAnalysisResult, conn) -> None:
     days = (
         result.journey.derived.days_submitted_to_current_status
         if result.journey.derived is not None
         else None
     )
     severity = _top_severity(result)
+    detections = result.stall_assessment.detections
 
-    # Three columns, not six. Permit number, address and permit type all
-    # repeat below -- the number in the caption directly under this card,
-    # the other two in the journey section -- so the strip now carries
-    # only what is unique to it: where the permit stands, how long it has
-    # stood there, and the verdict.
+    # Everything about the permit's headline state now lives inside this
+    # one bordered box: the permit number, the star control and the
+    # severity tally used to sit loose underneath it as a caption, a
+    # button and a separate coloured callout, which read as four unrelated
+    # blocks rather than one summary. The finding count carries an info
+    # popover instead of a second full-width banner.
     with st.container(border=True):
-        cols = st.columns(3)
-        cols[0].markdown(f"**Status**  \n{status_desc}")
-        cols[1].markdown(f"**Days in status**  \n{days if days is not None else '—'}")
+        cols = st.columns([3, 2, 3, 2], vertical_alignment="top")
+        cols[0].markdown(f"**{t('card.permit')}**  \n{result.permit_number}")
+        cols[1].markdown(f"**{t('card.days')}**  \n{days if days is not None else '—'}")
 
-        if severity is not None:
-            color = SEVERITY_COLORS[severity]
-            text_color = SEVERITY_TEXT_COLORS[severity]
-            badge = (
-                f'<span style="background-color:{color};color:{text_color};padding:2px 10px;'
-                f'border-radius:4px;font-weight:600">{SEVERITY_LABELS[severity]}</span>'
-            )
-            cols[2].markdown(f"**Top finding**  \n{badge}", unsafe_allow_html=True)
-        else:
-            icon = _OUTCOME_ICONS[result.outcome]
-            cols[2].markdown(f"**Result**  \n{icon} {outcome_headline(result)}")
+        with cols[2]:
+            if severity is not None:
+                color = SEVERITY_COLORS[severity]
+                text_color = SEVERITY_TEXT_COLORS[severity]
+                at_top = sum(1 for d in detections if d.severity == severity)
+                noun = t("severity.count_one") if at_top == 1 else t("severity.count_many")
+                badge = (
+                    f'<span style="background-color:{color};color:{text_color};'
+                    f'padding:2px 10px;border-radius:4px;font-weight:600">'
+                    f"{at_top} {severity_label(severity)} {noun}</span>"
+                )
+                st.markdown(f"**{t('card.top_finding')}**  \n{badge}", unsafe_allow_html=True)
+                with st.popover("", icon=":material/info:"):
+                    st.markdown(f"**{t('card.findings_info')}**")
+                    for sev in (Severity.SEVERE, Severity.ELEVATED, Severity.WATCH, Severity.UNSCORED):
+                        n = sum(1 for d in detections if d.severity == sev)
+                        if n:
+                            st.markdown(f"- {n} × {severity_label(sev)}")
+            else:
+                icon = _OUTCOME_ICONS[result.outcome]
+                st.markdown(f"**{t('card.result')}**  \n{icon} {outcome_headline(result)}")
+
+        with cols[3]:
+            quick_access.render_star_toggle(conn, "permit_number", result.permit_number)
 

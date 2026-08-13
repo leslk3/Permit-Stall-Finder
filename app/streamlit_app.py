@@ -48,6 +48,7 @@ from sections import (
     address_search,
     coverage_gaps,
     disclaimer,
+    export_report,
     location_map,
     next_best_action,
     permit_journey,
@@ -733,6 +734,7 @@ if result is not None:
     quick_glance.render(result, conn, compact=bool(st.session_state.portfolio_rows))
     location_map.render(result)
     next_best_action.render(result, get_knowledge_base())
+    export_report.render(result)
 
     # The show/hide toggle is gone: that material now lives in the reader
     # pane rendered above. Streamlit has no API to open its sidebar

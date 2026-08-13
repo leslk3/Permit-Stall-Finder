@@ -66,6 +66,11 @@ _STRINGS: dict[str, dict[str, str]] = {
     "search.spinner": {"en": "Analysing permit...", "es": "Analizando el permiso..."},
     # --- Results -------------------------------------------------------
     "results.back": {"en": "New search", "es": "Nueva búsqueda"},
+    "export.button": {"en": "Download report", "es": "Descargar informe"},
+    "export.help": {
+        "en": "A shareable Markdown summary of this analysis, including the disclaimer.",
+        "es": "Un resumen en Markdown de este análisis, con el aviso legal incluido, para compartir.",
+    },
     "results.reader_hint": {
         "en": "Full analysis — permit journey, finding-by-finding explanations and coverage notes — opens in the reader pane, using the control at the top right.",
         "es": "El análisis completo —recorrido del permiso, explicación de cada hallazgo y notas de cobertura— se abre en el panel de lectura, con el control en la parte superior derecha.",

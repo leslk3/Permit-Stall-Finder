@@ -421,6 +421,19 @@ with st.sidebar:
     # it is a way in, and on the results screen you are already in.
     qa_selection = None
     reader_result = st.session_state.get("result")
+    if reader_result is None:
+        # A batch run leaves session_state.result unset -- it is filled in
+        # further down, from the portfolio selectbox, which has not been
+        # instantiated yet when this panel renders. Without this the pane
+        # fell back to saved/recent on the whole portfolio screen. Falls
+        # back to the first row, which is what the selectbox itself
+        # defaults to, so the pane and the detail view agree on arrival.
+        cached = st.session_state.get("portfolio_results") or {}
+        rows = st.session_state.get("portfolio_rows") or []
+        selected = st.session_state.get("selected_permit") or (
+            rows[0].permit_number if rows else None
+        )
+        reader_result = cached.get(selected)
 
     if st.session_state.get("view") == "results" and reader_result is not None:
         st.markdown(f"### {i18n.t('panel.reader')}")

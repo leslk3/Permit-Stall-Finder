@@ -84,12 +84,10 @@ def render(result: PermitAnalysisResult, conn) -> None:
                     f'padding:2px 10px;border-radius:4px;font-weight:600">{tally}</span>'
                 )
                 st.markdown(f"**{t('card.top_finding')}**  \n{badge}", unsafe_allow_html=True)
-                with st.popover("", icon=":material/info:"):
-                    st.markdown(f"**{t('card.findings_info')}**")
-                    for sev in (Severity.SEVERE, Severity.ELEVATED, Severity.WATCH, Severity.UNSCORED):
-                        n = sum(1 for d in detections if d.severity == sev)
-                        if n:
-                            st.markdown(f"- {n} × {severity_label(sev)}")
+                # No breakdown popover here: the reader pane lists every
+                # finding in full a click away, so a second summary of the
+                # same tally was a control that only restated the badge
+                # already next to it.
             else:
                 icon = _OUTCOME_ICONS[result.outcome]
                 st.markdown(f"**{t('card.result')}**  \n{icon} {outcome_headline(result)}")

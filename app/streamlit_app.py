@@ -58,6 +58,7 @@ from sections import (
 
 from permit_stall_finder import config
 from permit_stall_finder.orchestration.pipeline import PipelineExecutionError, run_pipeline
+from permit_stall_finder.schema.journey import MatchStatus
 from permit_stall_finder.storage import user_state
 
 _ASSETS_DIR = Path(__file__).parent / "assets"
@@ -150,6 +151,17 @@ st.markdown(
         font-family: 'Material Symbols Rounded' !important;
     }
 
+    /* Star fill. Material Symbols draws filled vs outline from a variable
+       FILL axis defaulting to 0, so both states rendered hollow. Saved
+       items get FILL 1 (solid); unsaved stay at 0 (outline, unfilled). */
+    [class*="st-key-psf_star_on"] span[data-testid="stIconMaterial"] {
+        font-variation-settings: 'FILL' 1 !important;
+        color: #E0A800 !important;
+    }
+    [class*="st-key-psf_star_off"] span[data-testid="stIconMaterial"] {
+        font-variation-settings: 'FILL' 0 !important;
+    }
+
     /* Editorial serif, scoped to the title and the intro paragraph only --
        every number, label and table stays in the sans face. */
     [data-testid="stHeader"]::after,
@@ -224,7 +236,34 @@ st.markdown(
     /* Center the search controls under the hero. Streamlit renders tab
        labels in a flex row, so justify-content is what centers them. */
     /* Icon-only submit: clip the label rather than hiding it, so the
-       button keeps its accessible name while showing only the glyph. */
+       button keeps its accessible name while showing only the glyph.
+       Covers the search trigger (now a plain button, matched by its key)
+       as well as any form submit. */
+    [data-testid="stFormSubmitButton"] button p,
+    div[data-testid="stFormSubmitButton"] button p {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+    [data-testid="stFormSubmitButton"] button {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: #2774AE !important;
+        padding: 0.4rem !important;
+        min-height: 0 !important;
+    }
+    [data-testid="stFormSubmitButton"] button:hover {
+        background: #ECE8DF !important;
+        color: #003B5C !important;
+    }
+    [data-testid="stFormSubmitButton"] span[data-testid="stIconMaterial"] {
+        font-size: 1.5rem !important;
+    }
+
     div[data-testid="stFormSubmitButton"] button {
         background: transparent !important;
         border: none !important;
@@ -479,8 +518,38 @@ if st.session_state.view == "search":
         unsafe_allow_html=True,
     )
 
-    with st.form("unified_search", border=False, clear_on_submit=False):
-        field_col, submit_col = st.columns([14, 1], vertical_alignment="center")
+    # Enter adds a term to a list instead of running the search. Building a
+    # portfolio was previously a matter of knowing that commas worked --
+    # nothing on screen said so, and one permit number per Enter is the
+    # gesture people actually reach for. Search then runs the whole list at
+    # once. A plain input with on_change rather than a form: a form defers
+    # its widget's value until submit, so a user who typed a number and
+    # clicked Search without pressing Enter first would have their text
+    # silently dropped.
+    if "pending_terms" not in st.session_state:
+        st.session_state.pending_terms = []
+
+    def _queue(raw: str) -> None:
+        # Still splits commas: pasting a list someone sent you should work
+        # the same as typing them one at a time.
+        for token in portfolio.parse_permit_numbers(raw or ""):
+            if token not in st.session_state.pending_terms:
+                st.session_state.pending_terms.append(token)
+
+    # The form holds the field and exactly one submit button, Add. That
+    # single-button shape is load-bearing: Enter only submits a Streamlit
+    # form when there is one submit button, so a second one inside the
+    # form silently broke Enter entirely. Search therefore lives outside
+    # the form, which is also what the flow wants -- Enter queues, Search
+    # runs the queue.
+    #
+    # An earlier attempt used a bare input with an on_change callback.
+    # That looked right and did nothing: on_change fires before the typed
+    # value lands in session_state, so the handler read an empty string
+    # every time. A form guarantees the value is committed by the time
+    # its submit is handled.
+    with st.form("search_form", border=False, clear_on_submit=True):
+        field_col, add_col = st.columns([13, 1], vertical_alignment="center")
         with field_col:
             raw_text = st.text_input(
                 "Permit number or address",
@@ -488,23 +557,49 @@ if st.session_state.view == "search":
                 label_visibility="collapsed",
                 key="search_input",
             )
-        # Icon-only submit sitting beside the field instead of a labelled
-        # button beneath it. The visible label is gone but the accessible
-        # name is not: the CSS clips the text rather than display:none-ing
-        # it, so the button still announces as "Search" to a screen reader.
-        with submit_col:
-            submitted = st.form_submit_button(
-                i18n.t("search.submit"), icon=":material/search:"
+        with add_col:
+            add_clicked = st.form_submit_button(
+                i18n.t("search.add"), icon=":material/add:"
             )
-        if submitted:
-            tokens = portfolio.parse_permit_numbers(raw_text)
-            if not tokens:
-                st.warning(i18n.t("search.empty"))
-            elif all(portfolio.looks_like_permit_number(tok) for tok in tokens):
-                triggered = True
-                permit_numbers = tokens
-            else:
-                address_search.run_query(conn, raw_text)
+
+    if add_clicked:
+        _queue(raw_text)
+
+    st.caption(i18n.t("search.add_hint"))
+
+    # Added terms, each removable. Rendered after the input so the list
+    # reads as "what you have queued" rather than as part of the field.
+    if st.session_state.pending_terms:
+        chip_cols = st.columns(min(len(st.session_state.pending_terms), 4))
+        for index, term in enumerate(list(st.session_state.pending_terms)):
+            column = chip_cols[index % len(chip_cols)]
+            if column.button(
+                term, key=f"pending_{term}", icon=":material/close:", width="stretch"
+            ):
+                st.session_state.pending_terms.remove(term)
+                st.rerun()
+
+    # Outside the form, so it runs the queue rather than acting as a
+    # second way to submit the field.
+    search_clicked = st.button(
+        i18n.t("search.submit"),
+        icon=":material/search:",
+        type="primary",
+        key="run_search",
+        disabled=not st.session_state.pending_terms,
+    )
+
+    if search_clicked:
+        terms = list(st.session_state.pending_terms)
+        if not terms:
+            st.warning(i18n.t("search.empty"))
+        elif all(portfolio.looks_like_permit_number(term) for term in terms):
+            triggered = True
+            permit_numbers = terms
+        else:
+            # A mixed or unrecognised list is treated as one address
+            # lookup, which returns a pick-list rather than failing.
+            address_search.run_query(conn, " ".join(terms))
 
     address_submitted, address_permit_numbers = address_search.render_matches(conn)
     if address_submitted:
@@ -525,6 +620,17 @@ if triggered:
             try:
                 with st.spinner(i18n.t("search.spinner")):
                     result = run_pipeline(conn, permit_number)
+                if result.journey.match_status is MatchStatus.PERMIT_NOT_FOUND:
+                    # A typo'd permit number used to land on a full result
+                    # page reporting insufficient evidence, which reads as
+                    # "nothing is known about your permit" rather than
+                    # "that number doesn't exist". Offer near-matches to
+                    # pick from instead, in the same list an ambiguous
+                    # address already produces.
+                    address_search.run_permit_suggestions(permit_number)
+                    st.session_state.result = None
+                    st.session_state.pending_terms = []
+                    st.rerun()
                 st.session_state.result = result
                 st.session_state.portfolio_rows = None
                 st.session_state.portfolio_results = None

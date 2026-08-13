@@ -121,11 +121,22 @@ def render_star_toggle(conn: duckdb.DuckDBPyConnection, kind: str, value: str) -
     """
     starred = user_state.is_starred(conn, kind, value)
     label = t("star.added") if starred else t("star.add")
-    icon = ":material/star:" if starred else ":material/star_outline:"
-    if st.button("", key=f"star_toggle_{kind}_{value}", icon=icon, help=label):
+    # Both states use the same "star" ligature. Material Symbols draws
+    # filled vs outline from a variable FILL axis that defaults to 0, so
+    # asking for a different glyph name does nothing -- the solid and
+    # hollow stars came out identical. The keyed container puts the state
+    # into a DOM class (st-key-psf_star_on_...) that the CSS in
+    # streamlit_app.py targets to set FILL to 1, which is what actually
+    # makes a starred item read as filled.
+    state = "on" if starred else "off"
+    with st.container(key=f"psf_star_{state}_{kind}_{value}"):
+        clicked = st.button(
+            "", key=f"star_toggle_{kind}_{value}", icon=":material/star:", help=label
+        )
+    if clicked:
         if starred:
             user_state.unstar_item(conn, kind, value)
-            st.toast(t("star.removed_toast"), icon=":material/star_outline:")
+            st.toast(t("star.removed_toast"), icon=":material/star:")
         else:
             user_state.star_item(conn, kind, value)
             st.toast(t("star.added_toast"), icon=":material/star:")

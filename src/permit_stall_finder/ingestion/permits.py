@@ -94,6 +94,43 @@ def fetch_permits_by_address(
     )
 
 
+PERMIT_SUGGESTION_LIMIT = 8
+"""Max rows returned by fetch_permit_suggestions(). Same reasoning as
+ADDRESS_SEARCH_LIMIT: this is a "did you mean" picker, not a scan."""
+
+
+def fetch_permit_suggestions(
+    partial_permit_number: str,
+    base_url: str = config.SOCRATA_BASE_URL,
+    limit: int = PERMIT_SUGGESTION_LIMIT,
+) -> list[dict]:
+    """Permits whose number contains the given text -- for offering "did
+    you mean" choices when an exact permit-number lookup found nothing.
+
+    A resolver in exactly the same sense as fetch_permits_by_address():
+    it returns raw rows so a caller can list choices, and every pick is
+    then re-fetched through the normal fetch_raw_permit_row() + pipeline
+    path. It never feeds these rows into analysis directly.
+
+    partial_permit_number is interpolated into the $where clause only
+    after socrata.escape_soql_string(), the same rule every other
+    $where-building call site in this package follows (see
+    test_permit_query_escaping.py). Ordered by status_date desc so the
+    most recently active near-matches surface first.
+    """
+    escaped = socrata.escape_soql_string(partial_permit_number)
+    return socrata.query(
+        config.PERMIT_DATASET_ID,
+        {
+            "$select": socrata.select_with_system_columns(PERMIT_FIELDS),
+            "$where": f"upper(permit_nbr) like upper('%{escaped}%')",
+            "$order": "status_date DESC",
+            "$limit": str(limit),
+        },
+        base_url,
+    )
+
+
 def parse_permit_snapshot(raw: dict, observed_at: datetime | None = None) -> PermitSnapshot:
     observed_at = observed_at or datetime.now(timezone.utc)
     valuation_raw = raw.get("valuation")

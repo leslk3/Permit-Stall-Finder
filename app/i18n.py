@@ -54,6 +54,11 @@ _STRINGS: dict[str, dict[str, str]] = {
         "es": "Número de permiso o dirección",
     },
     "search.submit": {"en": "Search", "es": "Buscar"},
+    "search.add": {"en": "Add", "es": "Añadir"},
+    "search.add_hint": {
+        "en": "Press Enter (or Add) to queue another permit number, then Search when you're done.",
+        "es": "Pulse Intro (o Añadir) para agregar otro número de permiso, y luego Buscar cuando termine.",
+    },
     "search.empty": {
         "en": "Enter a permit number or a street address.",
         "es": "Ingrese un número de permiso o una dirección.",

@@ -13,10 +13,9 @@ below only queues its permit_number for the real pipeline to run.
 
 Also records each successful search into storage/user_state.py's
 search_history (so it shows up in quick_access.py's "Recent" row for a
-return user) and offers a star toggle for the address query itself --
-the same "log/star the thing you're doing here" pattern portfolio.py and
-streamlit_app.py already follow for permit numbers, just for the address
-half of the search flow.
+return user). It deliberately offers no star of its own: these rows are a
+disambiguation step, and starring belongs on a result once there is one
+thing to star.
 """
 
 from __future__ import annotations
@@ -25,8 +24,10 @@ import duckdb
 import streamlit as st
 
 from errors import GENERIC_ERROR_MESSAGE
-from sections import quick_access
-from permit_stall_finder.ingestion.permits import fetch_permits_by_address
+from permit_stall_finder.ingestion.permits import (
+    fetch_permit_suggestions,
+    fetch_permits_by_address,
+)
 from permit_stall_finder.storage import user_state
 
 
@@ -56,15 +57,30 @@ def run_query(conn: duckdb.DuckDBPyConnection, query: str) -> None:
         st.error(GENERIC_ERROR_MESSAGE)
 
 
+def run_permit_suggestions(permit_number: str) -> None:
+    """Looks for permits whose number merely *contains* what was typed,
+    for when an exact lookup found nothing. Parked in session_state under
+    the same key render_matches() already draws from, so a near-miss on a
+    permit number lands in the same pick-list a partial address does --
+    one "did you mean" list, not two that behave differently."""
+    try:
+        st.session_state.address_matches = fetch_permit_suggestions(permit_number)
+        st.session_state.address_query_value = permit_number
+    except Exception:
+        st.session_state.address_matches = None
+        st.error(GENERIC_ERROR_MESSAGE)
+
+
 def render_matches(conn: duckdb.DuckDBPyConnection) -> tuple[bool, list[str]]:
     """Returns (submitted, permit_numbers). submitted is True only on the
     Streamlit run where the user just clicked "Analyze selected" --
     callers should treat submitted=False as "nothing to do yet", not as
     "the search found nothing"."""
-    address_query = st.session_state.get("address_query_value", "")
-    if address_query:
-        quick_access.render_star_toggle(conn, "address", address_query)
-
+    # No star here. These rows are a disambiguation step -- a list of
+    # things that might be what you meant -- and offering to favourite the
+    # query you are still in the middle of resolving asks the user to
+    # commit to something they have not identified yet. Starring lives on
+    # the result, once there is one thing to star.
     matches = st.session_state.get("address_matches")
     if matches is not None and not matches:
         st.info("No permits found for that address. Try a shorter or differently formatted address.")

@@ -1,1 +1,10 @@
--e .
+# Installs this project (and, through pyproject.toml, streamlit + duckdb)
+# from the repo root. Streamlit Community Cloud runs pip against this file,
+# so it is what puts permit_stall_finder on the deployed app's import path.
+#
+# A plain "." rather than "-e ." on purpose: an editable install writes a
+# path link that assumes the checkout stays where it was built, which is not
+# a safe assumption on a hosted runner. Local development still uses
+# `pip install -e ".[dev]"` directly, per the README -- that workflow does
+# not read this file.
+.

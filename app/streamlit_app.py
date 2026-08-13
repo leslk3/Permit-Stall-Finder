@@ -35,6 +35,7 @@ state below.
 
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 import streamlit as st
@@ -59,10 +60,35 @@ from permit_stall_finder import config
 from permit_stall_finder.orchestration.pipeline import PipelineExecutionError, run_pipeline
 from permit_stall_finder.storage import user_state
 
-# Inlined rather than served through st.image() so the mark can sit inside
-# the hero's own centered markup block and be sized purely by CSS. It's a
-# small static vector; read once at module import, not per rerun.
-_LOGO_SVG = (Path(__file__).parent / "assets" / "logo.svg").read_text()
+_ASSETS_DIR = Path(__file__).parent / "assets"
+_RASTER_LOGO_NAMES = ("logo.png", "logo.jpg", "logo.jpeg", "logo.webp")
+
+
+def _logo_markup() -> str:
+    """Markup for the hero logo, inlined rather than served through
+    st.image() so it sits inside the hero's own centered markup block and
+    is sized purely by CSS.
+
+    A raster file dropped into app/assets/ (logo.png and friends) wins over
+    the bundled vector fallback, so replacing the mark is a matter of
+    saving a file rather than editing code. It is base64-embedded so it
+    does not depend on Streamlit's static-file serving being enabled. The
+    CSS box is square and the image is object-fit: cover, which
+    centre-crops a non-square source instead of squashing it.
+
+    Read once at import, not per rerun.
+    """
+    for name in _RASTER_LOGO_NAMES:
+        candidate = _ASSETS_DIR / name
+        if candidate.exists():
+            suffix = candidate.suffix.lower()
+            mime = "image/jpeg" if suffix in {".jpg", ".jpeg"} else f"image/{suffix.lstrip('.')}"
+            encoded = base64.b64encode(candidate.read_bytes()).decode("ascii")
+            return f'<img src="data:{mime};base64,{encoded}" alt="Permit Stall Finder">'
+    return (_ASSETS_DIR / "logo.svg").read_text()
+
+
+_LOGO_MARKUP = _logo_markup()
 
 st.set_page_config(
     page_title="Permit Stall Finder",
@@ -170,10 +196,14 @@ st.markdown(
         overflow: hidden;
         line-height: 0;
     }
-    .psf-logo svg {
+    .psf-logo svg,
+    .psf-logo img {
         width: 100%;
         height: 100%;
         display: block;
+        /* cover, not contain: a source that isn't square gets centre-
+           cropped to the square box rather than letterboxed or squashed. */
+        object-fit: cover;
     }
     .psf-hero h1 {
         font-size: 2.75rem;
@@ -220,34 +250,11 @@ st.markdown(
         font-size: 1.5rem !important;
     }
 
-    /* "Enter" keycap in place of Streamlit's own "Press Enter to submit
-       form" helper line, which appears on focus and reads as instructions
-       rather than as part of the control. */
+    /* Streamlit's own "Press Enter to submit form" helper line stays
+       hidden: the magnifying glass beside the field is the whole
+       affordance, and Enter still submits whether or not it is captioned. */
     [data-testid="InputInstructions"] {
         display: none !important;
-    }
-    [data-testid="stForm"] [data-testid="stTextInputRootElement"] {
-        position: relative;
-    }
-    [data-testid="stForm"] [data-testid="stTextInputRootElement"] input {
-        padding-right: 74px;
-    }
-    [data-testid="stForm"] [data-testid="stTextInputRootElement"]::after {
-        content: "Enter";
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        font-size: 0.7rem;
-        font-weight: 500;
-        letter-spacing: 0.02em;
-        color: #7A736B;
-        background: #FFFFFF;
-        border: 1px solid #D9D3C8;
-        border-bottom-width: 2px;
-        border-radius: 6px;
-        padding: 2px 8px;
-        pointer-events: none;
     }
     div[data-testid="stTabs"] button[role="tab"] {
         flex: 0 0 auto;
@@ -291,25 +298,14 @@ st.markdown(
         border-left: 1px solid #E6E2D9;
     }
     /* The reopen control is anchored top-left for a left sidebar; move it
-       to the right edge so it sits on the side the panel now opens from,
-       and swap its chevron for a hamburger. Streamlit draws the glyph as
-       a font ligature from the element's own text, so the swap is done by
-       zeroing that text and injecting "menu" via ::before -- this is the
-       menu the account, saved-search and alerts entries will hang off. */
+       to the right edge so it sits on the side the panel now opens from.
+       Its own expand/collapse glyph is left alone. */
     [data-testid="stExpandSidebarButton"] {
         position: fixed !important;
         right: 0.75rem;
         left: auto !important;
         top: 0.6rem;
         z-index: 1000;
-    }
-    [data-testid="stExpandSidebarButton"] span[data-testid="stIconMaterial"] {
-        font-size: 0 !important;
-    }
-    [data-testid="stExpandSidebarButton"] span[data-testid="stIconMaterial"]::before {
-        content: "menu";
-        font-size: 1.5rem;
-        color: #1F1E1D;
     }
     section.stMain {
         order: 1;
@@ -337,7 +333,7 @@ st.markdown(
 
 st.markdown(
     '<div class="psf-hero">'
-    f'<div class="psf-logo">{_LOGO_SVG}</div>'
+    f'<div class="psf-logo">{_LOGO_MARKUP}</div>'
     "<h1>Find your permit</h1>"
     '<p class="psf-intro">Understand the observable journey of an LA building permit, '
     "identify unusual delays or process friction, and see grounded guidance on what may "

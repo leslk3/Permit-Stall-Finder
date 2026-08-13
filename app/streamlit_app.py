@@ -193,13 +193,61 @@ st.markdown(
 
     /* Center the search controls under the hero. Streamlit renders tab
        labels in a flex row, so justify-content is what centers them. */
-    div[data-testid="stFormSubmitButton"] {
-        display: flex;
-        justify-content: center;
-        margin-top: 0.35rem;
-    }
+    /* Icon-only submit: clip the label rather than hiding it, so the
+       button keeps its accessible name while showing only the glyph. */
     div[data-testid="stFormSubmitButton"] button {
-        min-width: 190px;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: #2774AE !important;
+        padding: 0.4rem !important;
+        min-height: 0 !important;
+    }
+    div[data-testid="stFormSubmitButton"] button:hover {
+        background: #ECE8DF !important;
+        color: #003B5C !important;
+    }
+    div[data-testid="stFormSubmitButton"] button p,
+    div[data-testid="stFormSubmitButton"] button div:not([data-testid="stIconMaterial"]) {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+    div[data-testid="stFormSubmitButton"] span[data-testid="stIconMaterial"] {
+        font-size: 1.5rem !important;
+    }
+
+    /* "Enter" keycap in place of Streamlit's own "Press Enter to submit
+       form" helper line, which appears on focus and reads as instructions
+       rather than as part of the control. */
+    [data-testid="InputInstructions"] {
+        display: none !important;
+    }
+    [data-testid="stForm"] [data-testid="stTextInputRootElement"] {
+        position: relative;
+    }
+    [data-testid="stForm"] [data-testid="stTextInputRootElement"] input {
+        padding-right: 74px;
+    }
+    [data-testid="stForm"] [data-testid="stTextInputRootElement"]::after {
+        content: "Enter";
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 0.7rem;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: #7A736B;
+        background: #FFFFFF;
+        border: 1px solid #D9D3C8;
+        border-bottom-width: 2px;
+        border-radius: 6px;
+        padding: 2px 8px;
+        pointer-events: none;
     }
     div[data-testid="stTabs"] button[role="tab"] {
         flex: 0 0 auto;
@@ -243,13 +291,25 @@ st.markdown(
         border-left: 1px solid #E6E2D9;
     }
     /* The reopen control is anchored top-left for a left sidebar; move it
-       to the right edge so it sits on the side the panel now opens from. */
+       to the right edge so it sits on the side the panel now opens from,
+       and swap its chevron for a hamburger. Streamlit draws the glyph as
+       a font ligature from the element's own text, so the swap is done by
+       zeroing that text and injecting "menu" via ::before -- this is the
+       menu the account, saved-search and alerts entries will hang off. */
     [data-testid="stExpandSidebarButton"] {
         position: fixed !important;
         right: 0.75rem;
         left: auto !important;
         top: 0.6rem;
         z-index: 1000;
+    }
+    [data-testid="stExpandSidebarButton"] span[data-testid="stIconMaterial"] {
+        font-size: 0 !important;
+    }
+    [data-testid="stExpandSidebarButton"] span[data-testid="stIconMaterial"]::before {
+        content: "menu";
+        font-size: 1.5rem;
+        color: #1F1E1D;
     }
     section.stMain {
         order: 1;
@@ -354,13 +414,21 @@ if qa_selection is not None:
 # A form rather than a bare input + button so Enter submits, the way any
 # search field is expected to behave.
 with st.form("unified_search", border=False, clear_on_submit=False):
-    raw_text = st.text_input(
-        "Permit number or address",
-        placeholder="Permit number or street address",
-        label_visibility="collapsed",
-        key="search_input",
-    )
-    if st.form_submit_button("Search", type="primary", icon=":material/search:"):
+    field_col, submit_col = st.columns([14, 1], vertical_alignment="center")
+    with field_col:
+        raw_text = st.text_input(
+            "Permit number or address",
+            placeholder="Permit number or street address",
+            label_visibility="collapsed",
+            key="search_input",
+        )
+    # Icon-only submit sitting beside the field instead of a labelled
+    # button beneath it. The visible label is gone but the accessible name
+    # is not: the CSS clips the text rather than display:none-ing it, so
+    # the button still announces as "Search" to a screen reader.
+    with submit_col:
+        submitted = st.form_submit_button("Search", icon=":material/search:")
+    if submitted:
         tokens = portfolio.parse_permit_numbers(raw_text)
         if not tokens:
             st.warning("Enter a permit number or a street address.")

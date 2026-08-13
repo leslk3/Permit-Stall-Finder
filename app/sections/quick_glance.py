@@ -49,7 +49,26 @@ def _top_severity(result: PermitAnalysisResult) -> Severity | None:
     return max(severities, key=lambda s: _SEVERITY_RANK[s])
 
 
-def render(result: PermitAnalysisResult, conn) -> None:
+def _render_compact(result: PermitAnalysisResult, conn) -> None:
+    """One line -- permit number plus the star and bell -- for the
+    portfolio screen, where the triage table directly above already shows
+    this permit's status, days and headline on the row the user just
+    clicked. Repeating those in a card underneath restated the row rather
+    than adding to it. The star and bell are the only things on the full
+    card the table has no place for, so they are what survives."""
+    heading_col, star_col, bell_col = st.columns([8, 1, 1], vertical_alignment="center")
+    heading_col.markdown(f"#### {result.permit_number}")
+    with star_col:
+        quick_access.render_star_toggle(conn, "permit_number", result.permit_number)
+    with bell_col:
+        quick_access.render_alert_toggle(conn, "permit_number", result.permit_number)
+
+
+def render(result: PermitAnalysisResult, conn, *, compact: bool = False) -> None:
+    if compact:
+        _render_compact(result, conn)
+        return
+
     days = (
         result.journey.derived.days_submitted_to_current_status
         if result.journey.derived is not None

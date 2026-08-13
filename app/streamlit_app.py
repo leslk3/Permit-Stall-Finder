@@ -419,35 +419,16 @@ with st.sidebar:
     # main column, so the long-form reading has its own column instead of
     # unrolling underneath the summary. Saved/recent is not shown there:
     # it is a way in, and on the results screen you are already in.
+    # The reader pane is NOT rendered here. `with st.sidebar` can be
+    # reopened anywhere in the script, and the pane has to be filled in
+    # after the triage table has run: a table row click updates that
+    # widget's selection state as the widget renders, which is further
+    # down, so reading the selection this early showed the previously
+    # selected permit's analysis -- the pane sat one click behind the
+    # detail view beside it. It is rendered from the results section below
+    # instead, once the selected permit is settled.
     qa_selection = None
-    reader_result = st.session_state.get("result")
-    if reader_result is None:
-        # A batch run leaves session_state.result unset -- it is filled in
-        # further down, from the portfolio selectbox, which has not been
-        # instantiated yet when this panel renders. Without this the pane
-        # fell back to saved/recent on the whole portfolio screen. Falls
-        # back to the first row, which is what the selectbox itself
-        # defaults to, so the pane and the detail view agree on arrival.
-        cached = st.session_state.get("portfolio_results") or {}
-        rows = st.session_state.get("portfolio_rows") or []
-        selected = st.session_state.get("selected_permit") or (
-            rows[0].permit_number if rows else None
-        )
-        reader_result = cached.get(selected)
-
-    if st.session_state.get("view") == "results" and reader_result is not None:
-        st.markdown(f"### {i18n.t('panel.reader')}")
-        # Starts at the journey: the map is back in the main column beside
-        # the summary card, where where-it-is reads as part of the headline
-        # rather than as the opening of a long-form read.
-        permit_journey.render(reader_result.journey)
-        stall_findings.render(
-            reader_result.stall_assessment,
-            reader_result.developer_explanations,
-            get_knowledge_base(),
-        )
-        coverage_gaps.render(reader_result.coverage_gaps, reader_result.data_quality_flags)
-    else:
+    if st.session_state.get("view") != "results":
         st.markdown(f"### {i18n.t('panel.heading')}")
         # render() returns the clicked pill, which is None both when there
         # is no history and when there is history but nothing was clicked
@@ -595,7 +576,7 @@ if i18n.current_language() != "en":
 if st.session_state.portfolio_rows:
     portfolio.render_table(st.session_state.portfolio_rows)
 
-    selected_permit = st.session_state.get("selected_permit")
+    selected_permit = portfolio.selected_permit_number(st.session_state.portfolio_rows)
     cached_results = st.session_state.portfolio_results or {}
     if selected_permit and selected_permit in cached_results:
         # Reuses the PermitAnalysisResult already computed during the
@@ -628,7 +609,22 @@ if result is not None:
     # was top_level_result's whole job, so it no longer renders here; the
     # card's own "Top finding"/"Result" cell carries the same headline,
     # and the per-finding detail is unchanged inside the toggle below.
-    quick_glance.render(result, conn)
+    # Reopening the sidebar here, rather than in the panel block near the
+    # top of this script, is what keeps the pane and the main column
+    # showing the same permit: by this point the triage table has rendered
+    # and its row selection is settled.
+    with st.sidebar:
+        st.markdown(f"### {i18n.t('panel.reader')}")
+        # Starts at the journey: the map is in the main column beside the
+        # summary, where where-it-is reads as part of the headline rather
+        # than as the opening of a long-form read.
+        permit_journey.render(result.journey)
+        stall_findings.render(
+            result.stall_assessment, result.developer_explanations, get_knowledge_base()
+        )
+        coverage_gaps.render(result.coverage_gaps, result.data_quality_flags)
+
+    quick_glance.render(result, conn, compact=bool(st.session_state.portfolio_rows))
     location_map.render(result)
     next_best_action.render(result, get_knowledge_base())
 

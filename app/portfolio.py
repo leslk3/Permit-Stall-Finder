@@ -25,7 +25,7 @@ from dataclasses import dataclass
 
 import streamlit as st
 
-from formatting import SEVERITY_LABELS, outcome_headline
+from formatting import outcome_headline
 from permit_stall_finder.orchestration.pipeline import (
     AnalysisOutcome,
     PermitAnalysisResult,
@@ -202,30 +202,69 @@ def run_batch(
     )
 
 
+TABLE_KEY = "portfolio_table"
+
+
+def selected_permit_number(rows: list[PortfolioRow]) -> str | None:
+    """Permit number for the row currently selected in the triage table.
+
+    Reads the table's own selection state rather than a separate widget,
+    and is safe to call before render_table() has run this script pass --
+    which matters because the reader pane renders above the table and needs
+    to know which permit it is showing. Falls back to the first row, the
+    worst one given rows arrive worst-first, so something sensible is
+    selected on arrival instead of nothing.
+    """
+    if not rows:
+        return None
+    state = st.session_state.get(TABLE_KEY)
+    indices: list[int] = []
+    if state is not None:
+        selection = state.get("selection") if isinstance(state, dict) else getattr(state, "selection", None)
+        if selection is not None:
+            indices = (
+                selection.get("rows", [])
+                if isinstance(selection, dict)
+                else list(getattr(selection, "rows", []))
+            )
+    if indices and 0 <= indices[0] < len(rows):
+        return rows[indices[0]].permit_number
+    return rows[0].permit_number
+
+
 def render_table(rows: list[PortfolioRow]) -> None:
     """Pure rendering of an already-computed, already-sorted row list --
-    no pipeline calls, no session_state writes. The permit-detail
-    selectbox (key="selected_permit") lives here because it's part of the
-    same at-a-glance table, but which result loads into the detail view
-    below is decided by streamlit_app.py, not this function."""
+    no pipeline calls. Selecting a row is the table's own affordance now
+    rather than a separate selectbox repeating the permit numbers already
+    on screen; which result that loads is still decided by
+    streamlit_app.py, via selected_permit_number() above.
+
+    Columns are the five that differ between rows and can't be read
+    elsewhere. "Severity" is gone because "Result" already carries it and
+    covers the outcomes severity cannot -- a clean permit has no severity
+    to show but does have a headline. "Type" and "Developer action
+    available" moved to the detail view, where they have room to say
+    something more useful than a repeated category and a Yes/-.
+    """
     st.subheader("Portfolio triage")
-    st.caption(f"{len(rows)} permits, worst first.")
+    st.caption(f"{len(rows)} permits, worst first. Select a row for its full detail.")
 
     table_data = [
         {
             "Permit": r.permit_number,
             "Address": r.address,
-            "Type": r.permit_type,
             "Status": r.status_desc,
-            "Severity": SEVERITY_LABELS.get(r.top_severity, "—") if r.top_severity else "—",
-            "Result": r.headline,
             "Days in status": r.days_in_current_status if r.days_in_current_status is not None else "—",
-            "Developer action available": "Yes" if r.has_actionable_step else "—",
+            "Result": r.headline,
         }
         for r in rows
     ]
-    st.dataframe(table_data, hide_index=True, width="stretch")
-
-    options = [r.permit_number for r in rows]
-    st.selectbox("View full detail for:", options, key="selected_permit")
+    st.dataframe(
+        table_data,
+        hide_index=True,
+        width="stretch",
+        on_select="rerun",
+        selection_mode="single-row",
+        key=TABLE_KEY,
+    )
 

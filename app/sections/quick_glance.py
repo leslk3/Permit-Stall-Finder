@@ -74,11 +74,14 @@ def render(result: PermitAnalysisResult, conn) -> None:
                 color = SEVERITY_COLORS[severity]
                 text_color = SEVERITY_TEXT_COLORS[severity]
                 at_top = sum(1 for d in detections if d.severity == severity)
-                noun = t("severity.count_one") if at_top == 1 else t("severity.count_many")
+                tally = t("severity.tally").format(
+                    count=at_top,
+                    severity=severity_label(severity),
+                    noun=t("severity.count_one") if at_top == 1 else t("severity.count_many"),
+                )
                 badge = (
                     f'<span style="background-color:{color};color:{text_color};'
-                    f'padding:2px 10px;border-radius:4px;font-weight:600">'
-                    f"{at_top} {severity_label(severity)} {noun}</span>"
+                    f'padding:2px 10px;border-radius:4px;font-weight:600">{tally}</span>'
                 )
                 st.markdown(f"**{t('card.top_finding')}**  \n{badge}", unsafe_allow_html=True)
                 with st.popover("", icon=":material/info:"):

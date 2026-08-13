@@ -62,8 +62,8 @@ _STRINGS: dict[str, dict[str, str]] = {
     # --- Results -------------------------------------------------------
     "results.back": {"en": "New search", "es": "Nueva búsqueda"},
     "results.reader_hint": {
-        "en": "Full analysis — location, permit journey, finding-by-finding explanations and coverage notes — opens in the reader pane, using the control at the top right.",
-        "es": "El análisis completo —ubicación, recorrido del permiso, explicación de cada hallazgo y notas de cobertura— se abre en el panel de lectura, con el control en la parte superior derecha.",
+        "en": "Full analysis — permit journey, finding-by-finding explanations and coverage notes — opens in the reader pane, using the control at the top right.",
+        "es": "El análisis completo —recorrido del permiso, explicación de cada hallazgo y notas de cobertura— se abre en el panel de lectura, con el control en la parte superior derecha.",
     },
     "panel.reader": {"en": "Full analysis", "es": "Análisis completo"},
     "results.english_note": {
@@ -148,14 +148,37 @@ _STRINGS: dict[str, dict[str, str]] = {
     "severity.UNSCORED": {"en": "Unscored", "es": "Sin calificar"},
     "severity.count_one": {"en": "finding", "es": "hallazgo"},
     "severity.count_many": {"en": "findings", "es": "hallazgos"},
+    # A template, not three concatenated words: joining parts in code bakes
+    # English word order into every language, which produced "1 Grave
+    # hallazgo" -- Spanish puts the adjective after the noun.
+    #
+    # Spanish sets the severity off with a colon rather than running it in
+    # as an adjective, which sidesteps agreement entirely. Inflected it
+    # would need both gender and number per severity ("3 hallazgos
+    # graves"), and these labels are not all adjectives to begin with --
+    # "Observar" is a verb and "Sin calificar" a phrase, neither of which
+    # inflects like "grave". In apposition every label stays correct
+    # whatever the count.
+    "severity.tally": {
+        "en": "{count} {severity} {noun}",
+        "es": "{count} {noun}: {severity}",
+    },
 }
+
+
+#: Plain session_state key holding the chosen language -- deliberately not
+#: the language widget's own key. Streamlit discards a keyed widget's state
+#: on any run where that widget is not instantiated, and the picker is only
+#: drawn on the landing page, so storing the choice there would reset it to
+#: English the moment the results screen rendered without it.
+LANGUAGE_STATE_KEY = "lang_pref"
 
 
 def current_language() -> str:
     """The active language code, defaulting to English. Read from
     session_state so every module resolves the same value within one
     script run without threading a parameter through every renderer."""
-    lang = st.session_state.get("language", DEFAULT_LANGUAGE)
+    lang = st.session_state.get(LANGUAGE_STATE_KEY, DEFAULT_LANGUAGE)
     return lang if lang in LANGUAGES else DEFAULT_LANGUAGE
 
 

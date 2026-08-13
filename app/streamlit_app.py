@@ -383,19 +383,35 @@ with st.sidebar:
     # Language first: it reframes everything rendered after it, and this
     # widget writes st.session_state["language"], which i18n.t() reads. It
     # is instantiated before any translated string on the page below.
-    # Seeded through session_state rather than the widget's own default=,
-    # which reasserts itself on every script run when a key is also given
-    # and so silently snapped the choice back to English on the very next
-    # rerun. Seeding once and letting the key own the value afterwards is
-    # what makes the selection stick.
-    if "language" not in st.session_state:
-        st.session_state.language = i18n.DEFAULT_LANGUAGE
-    st.segmented_control(
-        i18n.t("panel.language"),
-        options=list(i18n.LANGUAGES),
-        format_func=lambda code: i18n.LANGUAGES[code],
-        key="language",
-    )
+    # Language is a landing-page control: on the results screen the panel
+    # is a reader pane, and a settings widget sitting on top of the
+    # analysis is a different kind of thing from the analysis.
+    #
+    # The choice lives in i18n.LANGUAGE_STATE_KEY rather than in the
+    # widget's own key. Streamlit discards keyed widget state on any run
+    # where the widget is not drawn, so parking the value there would blank
+    # it the first time the results screen rendered without the picker. The
+    # on_change callback runs before the script body, so the copy across is
+    # already done by the time anything below reads it -- assigning after
+    # the widget call instead would leave every string on this run using
+    # the previous language.
+    if i18n.LANGUAGE_STATE_KEY not in st.session_state:
+        st.session_state[i18n.LANGUAGE_STATE_KEY] = i18n.DEFAULT_LANGUAGE
+
+    def _sync_language() -> None:
+        picked = st.session_state.get("language_widget")
+        if picked:
+            st.session_state[i18n.LANGUAGE_STATE_KEY] = picked
+
+    if st.session_state.view != "results":
+        st.segmented_control(
+            i18n.t("panel.language"),
+            options=list(i18n.LANGUAGES),
+            format_func=lambda code: i18n.LANGUAGES[code],
+            default=st.session_state[i18n.LANGUAGE_STATE_KEY],
+            key="language_widget",
+            on_change=_sync_language,
+        )
     # The panel carries different cargo on each screen. On the landing
     # page it is saved/recent -- the things that help you start a search.
     # On the results screen it becomes a reader pane holding the deep-dive
@@ -408,7 +424,9 @@ with st.sidebar:
 
     if st.session_state.get("view") == "results" and reader_result is not None:
         st.markdown(f"### {i18n.t('panel.reader')}")
-        location_map.render(reader_result)
+        # Starts at the journey: the map is back in the main column beside
+        # the summary card, where where-it-is reads as part of the headline
+        # rather than as the opening of a long-form read.
         permit_journey.render(reader_result.journey)
         stall_findings.render(
             reader_result.stall_assessment,
@@ -598,6 +616,7 @@ if result is not None:
     # card's own "Top finding"/"Result" cell carries the same headline,
     # and the per-finding detail is unchanged inside the toggle below.
     quick_glance.render(result, conn)
+    location_map.render(result)
     next_best_action.render(result, get_knowledge_base())
 
     # The show/hide toggle is gone: that material now lives in the reader
